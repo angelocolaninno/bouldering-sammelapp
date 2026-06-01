@@ -2,7 +2,7 @@
 <html lang="de">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>Sammelbuch — Boulder-Jahr</title>
   <!-- PWA -->
   <link rel="manifest" href="manifest.json">
@@ -16,8 +16,8 @@
   <link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,300..600;1,6..72,300..600&display=swap" rel="stylesheet">
   <style>
     html, body { margin: 0; padding: 0; background: #efe9dc; font-family: system-ui, -apple-system, sans-serif; color: #29261b; min-height: 100vh; }
-    body { display: flex; align-items: center; justify-content: center; padding: 40px 20px; box-sizing: border-box; }
-    #root { display: flex; align-items: center; justify-content: center; }
+    body { display: block; padding: 0; box-sizing: border-box; }
+    #root { display: block; }
     body::before {
       content: ''; position: fixed; inset: 0; pointer-events: none;
       background-image: radial-gradient(rgba(41,38,27,0.04) 1px, transparent 1px), radial-gradient(rgba(41,38,27,0.03) 1px, transparent 1px);
@@ -30,7 +30,7 @@
       color: rgba(41,38,27,0.55); letter-spacing: 0.02em; pointer-events: none;
     }
     #tweaks-btn {
-      position: fixed; top: 16px; right: 16px; z-index: 9998;
+      position: fixed; top: calc(env(safe-area-inset-top) + 10px); right: 16px; z-index: 9998;
       width: 36px; height: 36px; border-radius: 50%; border: 0;
       background: rgba(41,38,27,0.12); color: #29261b; font-size: 16px;
       cursor: pointer; display: flex; align-items: center; justify-content: center;
@@ -60,8 +60,29 @@
 // ─────────────────────────────────────────────────────────────
 // DATA
 // ─────────────────────────────────────────────────────────────
-const YEAR = 2026;
+const YEAR = new Date().getFullYear();          // aktuelles Jahr — rollt automatisch weiter
 const TODAY = (() => { const d = new Date(); d.setHours(0,0,0,0); return d; })();
+
+function toRoman(n) {
+  const map=[[1000,'M'],[900,'CM'],[500,'D'],[400,'CD'],[100,'C'],[90,'XC'],[50,'L'],[40,'XL'],[10,'X'],[9,'IX'],[5,'V'],[4,'IV'],[1,'I']];
+  let r=''; for (const [v,s] of map) { while (n>=v) { r+=s; n-=v; } } return r;
+}
+const ROMAN_YEAR = toRoman(YEAR);
+
+// Check-ins eines Jahres aus localStorage lesen (Schlüssel pro Jahr: sb-checkins-<jahr>)
+function loadCheckins(year) {
+  try { return JSON.parse(localStorage.getItem(`sb-checkins-${year}`) || '[]'); } catch { return []; }
+}
+// Alle Jahre, für die Daten existieren (plus aktuelles Jahr), absteigend sortiert
+function availableYears() {
+  const years=new Set([YEAR]);
+  for (let i=0;i<localStorage.length;i++) {
+    const k=localStorage.key(i);
+    const m=k && k.match(/^sb-checkins-(\d{4})$/);
+    if (m) years.add(Number(m[1]));
+  }
+  return [...years].sort((a,b)=>b-a);
+}
 
 const DEMO_CHECKINS = [
   '2026-01-08','2026-01-13','2026-01-22',
@@ -87,6 +108,7 @@ function isoWeek(d) {
 }
 function isWinter(d) { const m = d.getMonth(); return m===11||m===0||m===1; }
 function dateFmtShort(d) { return d.toLocaleDateString('de-CH',{day:'2-digit',month:'short'}); }
+function dateFmtLong(d) { return d.toLocaleDateString('de-CH',{day:'numeric',month:'long'}); }
 
 function weekStreaks(checkinSet) {
   const weeks = new Set();
@@ -141,52 +163,12 @@ function earnedBadges(stats) {
 // ─────────────────────────────────────────────────────────────
 // iOS DEVICE FRAME
 // ─────────────────────────────────────────────────────────────
-function IOSStatusBar({ dark=false, time='9:41' }) {
-  const c = dark ? '#fff' : '#000';
+// Responsive Vollbild-Shell: füllt das echte Gerät, auf breiten Screens
+// auf eine Telefon-Spaltenbreite zentriert. Kein Fake-Geräterahmen mehr.
+function IOSDevice({ children }) {
   return (
-    <div style={{ display:'flex', gap:154, alignItems:'center', justifyContent:'center', padding:'21px 24px 19px', boxSizing:'border-box', position:'relative', zIndex:20, width:'100%' }}>
-      <div style={{ flex:1, height:22, display:'flex', alignItems:'center', justifyContent:'center', paddingTop:1.5 }}>
-        <span style={{ fontFamily:'-apple-system,system-ui', fontWeight:590, fontSize:17, lineHeight:'22px', color:c }}>{time}</span>
-      </div>
-      <div style={{ flex:1, height:22, display:'flex', alignItems:'center', justifyContent:'center', gap:7, paddingTop:1, paddingRight:1 }}>
-        <svg width="19" height="12" viewBox="0 0 19 12">
-          <rect x="0" y="7.5" width="3.2" height="4.5" rx="0.7" fill={c}/>
-          <rect x="4.8" y="5" width="3.2" height="7" rx="0.7" fill={c}/>
-          <rect x="9.6" y="2.5" width="3.2" height="9.5" rx="0.7" fill={c}/>
-          <rect x="14.4" y="0" width="3.2" height="12" rx="0.7" fill={c}/>
-        </svg>
-        <svg width="17" height="12" viewBox="0 0 17 12">
-          <path d="M8.5 3.2C10.8 3.2 12.9 4.1 14.4 5.6L15.5 4.5C13.7 2.7 11.2 1.5 8.5 1.5C5.8 1.5 3.3 2.7 1.5 4.5L2.6 5.6C4.1 4.1 6.2 3.2 8.5 3.2Z" fill={c}/>
-          <path d="M8.5 6.8C9.9 6.8 11.1 7.3 12 8.2L13.1 7.1C11.8 5.9 10.2 5.1 8.5 5.1C6.8 5.1 5.2 5.9 3.9 7.1L5 8.2C5.9 7.3 7.1 6.8 8.5 6.8Z" fill={c}/>
-          <circle cx="8.5" cy="10.5" r="1.5" fill={c}/>
-        </svg>
-        <svg width="27" height="13" viewBox="0 0 27 13">
-          <rect x="0.5" y="0.5" width="23" height="12" rx="3.5" stroke={c} strokeOpacity="0.35" fill="none"/>
-          <rect x="2" y="2" width="20" height="9" rx="2" fill={c}/>
-          <path d="M25 4.5V8.5C25.8 8.2 26.5 7.2 26.5 6.5C26.5 5.8 25.8 4.8 25 4.5Z" fill={c} fillOpacity="0.4"/>
-        </svg>
-      </div>
-    </div>
-  );
-}
-
-function IOSDevice({ children, width=402, height=874, dark=false }) {
-  const time = React.useMemo(() => {
-    const now = new Date();
-    return `${now.getHours()}:${String(now.getMinutes()).padStart(2,'0')}`;
-  }, []);
-  return (
-    <div style={{ width, height, borderRadius:48, overflow:'hidden', position:'relative', background:dark?'#000':'#F2F2F7', boxShadow:'0 40px 80px rgba(0,0,0,0.18), 0 0 0 1px rgba(0,0,0,0.12)', fontFamily:'-apple-system,system-ui,sans-serif', WebkitFontSmoothing:'antialiased' }}>
-      <div style={{ position:'absolute', top:11, left:'50%', transform:'translateX(-50%)', width:126, height:37, borderRadius:24, background:'#000', zIndex:50 }} />
-      <div style={{ position:'absolute', top:0, left:0, right:0, zIndex:10 }}>
-        <IOSStatusBar dark={dark} time={time} />
-      </div>
-      <div style={{ height:'100%', display:'flex', flexDirection:'column' }}>
-        <div style={{ flex:1, overflow:'auto' }}>{children}</div>
-      </div>
-      <div style={{ position:'absolute', bottom:0, left:0, right:0, zIndex:60, height:34, display:'flex', justifyContent:'center', alignItems:'flex-end', paddingBottom:8, pointerEvents:'none' }}>
-        <div style={{ width:139, height:5, borderRadius:100, background:dark?'rgba(255,255,255,0.7)':'rgba(0,0,0,0.25)' }} />
-      </div>
+    <div style={{ width:'100%', maxWidth:480, minHeight:'100dvh', margin:'0 auto', position:'relative', overflow:'hidden', background:'#f6f2ea', boxShadow:'0 0 80px rgba(0,0,0,0.12)', fontFamily:'-apple-system,system-ui,sans-serif', WebkitFontSmoothing:'antialiased' }}>
+      {children}
     </div>
   );
 }
@@ -419,7 +401,7 @@ function AlpinBadge({ badge, size=96, earned=true }) {
           return <line key={deg} x1={r+Math.cos(a)*BIN} y1={r+Math.sin(a)*BIN} x2={r+Math.cos(a)*BOUT} y2={r+Math.sin(a)*BOUT} stroke={cream} strokeOpacity="0.65" strokeWidth="1"/>;
         })}
         <text fontFamily="Newsreader,serif" fontSize={size*0.075} fontWeight="500" letterSpacing={size*0.04} fill={cream} opacity="0.85">
-          <textPath href={`#bt-${id}`} xlinkHref={`#bt-${id}`} startOffset="50%" textAnchor="middle">· MMXXVI ·</textPath>
+          <textPath href={`#bt-${id}`} xlinkHref={`#bt-${id}`} startOffset="50%" textAnchor="middle">{`· ${ROMAN_YEAR} ·`}</textPath>
         </text>
         <g transform={`translate(${r-FIELD*0.78},${r-FIELD*0.78}) scale(${FIELD*1.56/24})`}>
           {EMBLEMS[badge.id]?EMBLEMS[badge.id](cream):<text x="12" y="17" textAnchor="middle" fontFamily="Newsreader,serif" fontSize="14" fill={cream}>{badge.glyph}</text>}
@@ -469,7 +451,7 @@ function AlpinBadgeLocked({ size=96 }) {
 // ─────────────────────────────────────────────────────────────
 // VISUALIZATIONS
 // ─────────────────────────────────────────────────────────────
-function VizHeatmap({ stats, accent, todayISO }) {
+function VizHeatmap({ stats, accent, todayISO, year=YEAR }) {
   const days=new Set(stats.sortedDays);
   const months=['Jan','Feb','Mär','Apr','Mai','Jun','Jul','Aug','Sep','Okt','Nov','Dez'];
   return (
@@ -482,13 +464,13 @@ function VizHeatmap({ stats, accent, todayISO }) {
           </div>
         ))}
         {months.map((m,mi)=>{
-          const dim=new Date(YEAR,mi+1,0).getDate();
+          const dim=new Date(year,mi+1,0).getDate();
           return (
             <React.Fragment key={m}>
               <div style={{ fontSize:10, color:'rgba(41,38,27,0.55)', fontWeight:500, letterSpacing:'.02em', paddingRight:4, textAlign:'right' }}>{m}</div>
               {[...Array(31)].map((_,di)=>{
                 if (di>=dim) return <div key={di}/>;
-                const iso=`${YEAR}-${String(mi+1).padStart(2,'0')}-${String(di+1).padStart(2,'0')}`;
+                const iso=`${year}-${String(mi+1).padStart(2,'0')}-${String(di+1).padStart(2,'0')}`;
                 const hit=days.has(iso), isToday=iso===todayISO, future=iso>todayISO;
                 return (
                   <div key={di} style={{ width:'100%', aspectRatio:'1', display:'flex', alignItems:'center', justifyContent:'center' }}>
@@ -504,50 +486,50 @@ function VizHeatmap({ stats, accent, todayISO }) {
   );
 }
 
-function VizYearline({ stats, accent, todayISO }) {
-  const todayWeek=isoWeek(parseISO(todayISO));
-  const weeks=stats.weeksVisited;
-  const perWeek={};
-  for (const d of stats.sortedDays) { const w=isoWeek(parseISO(d)); perWeek[w]=(perWeek[w]||0)+1; }
+function VizMonth({ stats, accent, todayISO, year=YEAR, onToggle }) {
+  const set=new Set(stats.sortedDays);
+  const monthNames=['Januar','Februar','März','April','Mai','Juni','Juli','August','September','Oktober','November','Dezember'];
+  const [m,setM]=React.useState(()=> year===YEAR ? new Date().getMonth() : 0);
+  React.useEffect(()=>{ setM(year===YEAR ? new Date().getMonth() : 0); },[year]);
+  const dim=new Date(year,m+1,0).getDate();
+  const startDow=(new Date(year,m,1).getDay()+6)%7; // Montag = 0
+  const prefix=`${year}-${String(m+1).padStart(2,'0')}`;
+  const monthCount=[...set].filter((d)=>d.startsWith(prefix)).length;
+  const cells=[]; for (let i=0;i<startDow;i++) cells.push(null); for (let d=1;d<=dim;d++) cells.push(d);
+  const arrow={appearance:'none',border:0,background:'transparent',color:'rgba(41,38,27,0.55)',fontSize:22,lineHeight:1,cursor:'pointer',padding:'0 8px',fontFamily:'Newsreader,serif'};
   return (
-    <div style={{ padding:'20px 22px 8px', fontFamily:'system-ui,-apple-system,sans-serif' }}>
-      <div style={{ display:'flex', alignItems:'flex-end', height:110, gap:2, position:'relative' }}>
-        {[...Array(52)].map((_,i)=>{
-          const w=i+1, count=perWeek[w]||0, hit=weeks.has(w), future=w>todayWeek, isCurrent=w===todayWeek;
-          const h=future?14:(hit?24+Math.min(count,4)*18:14);
-          return <div key={i} style={{ flex:1, height:h, background:hit?accent:(future?'rgba(41,38,27,0.05)':'rgba(41,38,27,0.1)'), borderRadius:2, outline:isCurrent?'1px dashed rgba(41,38,27,0.4)':'none', outlineOffset:2, transition:'height .3s,background .25s' }}/>;
+    <div style={{ padding:'8px 18px 4px', fontFamily:'system-ui,-apple-system,sans-serif' }}>
+      <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:10 }}>
+        <button type="button" style={{...arrow,opacity:m===0?0.3:1}} onClick={()=>setM(Math.max(0,m-1))} disabled={m===0}>‹</button>
+        <div style={{ textAlign:'center' }}>
+          <div style={{ fontFamily:'Newsreader,serif', fontSize:22, fontWeight:500, color:'#29261b', letterSpacing:'-0.01em', lineHeight:1.1 }}>{monthNames[m]}</div>
+          <div style={{ fontSize:10, letterSpacing:'.1em', textTransform:'uppercase', color:'rgba(41,38,27,0.45)', fontWeight:600, marginTop:2 }}>{monthCount===0?'noch leer':`${monthCount} ${monthCount===1?'Besuch':'Besuche'}`}</div>
+        </div>
+        <button type="button" style={{...arrow,opacity:m===11?0.3:1}} onClick={()=>setM(Math.min(11,m+1))} disabled={m===11}>›</button>
+      </div>
+      <div style={{ display:'grid', gridTemplateColumns:'repeat(7,1fr)', gap:4 }}>
+        {['Mo','Di','Mi','Do','Fr','Sa','So'].map((w,i)=>(
+          <div key={i} style={{ textAlign:'center', fontSize:10, fontWeight:600, letterSpacing:'.04em', color:'rgba(41,38,27,0.4)', paddingBottom:2 }}>{w}</div>
+        ))}
+        {cells.map((d,i)=>{
+          if (d===null) return <div key={i}/>;
+          const iso=`${prefix}-${String(d).padStart(2,'0')}`;
+          const hit=set.has(iso), isToday=iso===todayISO, future=iso>todayISO;
+          const circle=(
+            <div style={{ width:'82%', aspectRatio:'1', borderRadius:'50%', display:'flex', alignItems:'center', justifyContent:'center',
+              background:hit?accent:'transparent', border:isToday&&!hit?`1.2px dashed ${accent}`:'none',
+              fontFamily:'Newsreader,serif', fontVariantNumeric:'oldstyle-nums', fontSize:16,
+              color:hit?'#f6f0e1':(future?'rgba(41,38,27,0.28)':'rgba(41,38,27,0.7)'),
+              boxShadow:hit?'0 1px 4px rgba(41,38,27,0.18)':'none', transition:'background .25s,color .25s' }}>{d}</div>
+          );
+          if (onToggle && !future) {
+            return (
+              <button key={i} type="button" onClick={()=>onToggle(iso)}
+                style={{ aspectRatio:'1', display:'flex', alignItems:'center', justifyContent:'center', border:0, background:'transparent', padding:0, cursor:'pointer', WebkitTapHighlightColor:'transparent' }}>{circle}</button>
+            );
+          }
+          return <div key={i} style={{ aspectRatio:'1', display:'flex', alignItems:'center', justifyContent:'center' }}>{circle}</div>;
         })}
-      </div>
-      <div style={{ display:'flex', marginTop:12, fontSize:10, color:'rgba(41,38,27,0.5)', fontFamily:'Newsreader,serif' }}>
-        {['Jan','Feb','Mär','Apr','Mai','Jun','Jul','Aug','Sep','Okt','Nov','Dez'].map((m)=>(
-          <div key={m} style={{ flex:1, textAlign:'left' }}>{m}</div>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-function VizBook({ stats, accent }) {
-  const days=stats.sortedDays;
-  const byMonth={};
-  for (const d of days) { const m=parseISO(d).getMonth(); (byMonth[m]=byMonth[m]||[]).push(d); }
-  const months=['Januar','Februar','März','April','Mai','Juni','Juli','August','September','Oktober','November','Dezember'];
-  return (
-    <div style={{ margin:'14px 16px 0', background:'#fbf6e9', borderRadius:6, border:'0.5px solid rgba(41,38,27,0.15)', boxShadow:'0 1px 0 rgba(41,38,27,0.04),0 2px 8px rgba(41,38,27,0.06)', padding:'18px 18px 22px', position:'relative', backgroundImage:'repeating-linear-gradient(to bottom,transparent 0,transparent 21px,rgba(41,38,27,0.05) 21px,rgba(41,38,27,0.05) 22px)', fontFamily:'Newsreader,serif' }}>
-      <div style={{ position:'absolute', left:32, top:8, bottom:8, width:1, background:'rgba(179,84,58,0.25)' }}/>
-      <div style={{ fontSize:11, letterSpacing:'.14em', color:'rgba(41,38,27,0.55)', fontFamily:'system-ui,sans-serif', textTransform:'uppercase', marginBottom:6 }}>Heft Nr. 1 · {YEAR}</div>
-      <div style={{ display:'flex', flexWrap:'wrap', gap:'10px 18px', paddingLeft:22 }}>
-        {Object.keys(byMonth).map((mi)=>(
-          <div key={mi} style={{ minWidth:72 }}>
-            <div style={{ fontSize:11, color:'rgba(41,38,27,0.6)', fontStyle:'italic', marginBottom:3 }}>{months[Number(mi)]}</div>
-            <div style={{ display:'flex', flexWrap:'wrap', gap:4 }}>
-              {byMonth[mi].map((d)=>{
-                const day=parseISO(d).getDate();
-                return <span key={d} style={{ display:'inline-block', fontSize:13, fontVariantNumeric:'oldstyle-nums', color:accent, border:`1.2px solid ${accent}`, borderRadius:3, padding:'1px 5px 0', transform:`rotate(${(day*7%5)-2}deg)`, background:'rgba(251,246,233,0.4)' }}>{day}.</span>;
-              })}
-            </div>
-          </div>
-        ))}
       </div>
     </div>
   );
@@ -567,10 +549,10 @@ function Stat({ label, value, hint }) {
 }
 
 function VizSegment({ value, onChange }) {
-  const opts=[{v:'heat',label:'Kalender'},{v:'line',label:'Jahreslinie'},{v:'book',label:'Heft'}];
+  const opts=[{v:'heat',label:'Jahr'},{v:'month',label:'Monat'}];
   return (
     <div style={{ display:'flex', gap:0, margin:'0 16px', padding:3, background:'rgba(41,38,27,0.06)', borderRadius:10, position:'relative' }}>
-      <div style={{ position:'absolute', top:3, bottom:3, left:`calc(3px + ${opts.findIndex((o)=>o.v===value)} * (100% - 6px) / 3)`, width:'calc((100% - 6px) / 3)', background:'#fbf8f1', borderRadius:8, boxShadow:'0 0.5px 0 rgba(41,38,27,0.08),0 1px 3px rgba(41,38,27,0.08)', transition:'left .2s cubic-bezier(.3,.7,.4,1)' }}/>
+      <div style={{ position:'absolute', top:3, bottom:3, left:`calc(3px + ${opts.findIndex((o)=>o.v===value)} * (100% - 6px) / ${opts.length})`, width:`calc((100% - 6px) / ${opts.length})`, background:'#fbf8f1', borderRadius:8, boxShadow:'0 0.5px 0 rgba(41,38,27,0.08),0 1px 3px rgba(41,38,27,0.08)', transition:'left .2s cubic-bezier(.3,.7,.4,1)' }}/>
       {opts.map((o)=>(
         <button key={o.v} onClick={()=>onChange(o.v)} style={{ flex:1, padding:'7px 0', background:'transparent', border:0, fontFamily:'system-ui', fontSize:13, fontWeight:500, color:value===o.v?'#29261b':'rgba(41,38,27,0.55)', position:'relative', zIndex:1, cursor:'pointer' }}>{o.label}</button>
       ))}
@@ -578,16 +560,20 @@ function VizSegment({ value, onChange }) {
   );
 }
 
-function SammelnScreen({ stats, accent, viz, setViz, goal, onCheckin, checkedInToday, todayISO, showDemo }) {
+function SammelnScreen({ stats, accent, viz, setViz, goal, onCheckin, checkedInToday, todayISO, showDemo, year=YEAR, onToggleDay, onNachtragen }) {
   const remaining=Math.max(0,goal-stats.total);
   const goalPct=Math.min(100,Math.round((stats.total/goal)*100));
-  const btnDisabled=checkedInToday||showDemo;
+  const viewingPast=year!==YEAR;
+  const btnDisabled=checkedInToday||showDemo||viewingPast;
   return (
     <div style={{ paddingBottom:110 }}>
       <div style={{ padding:'64px 20px 14px', display:'flex', alignItems:'baseline', justifyContent:'space-between' }}>
         <div>
           <div style={{ fontSize:12, letterSpacing:'.12em', color:'rgba(41,38,27,0.5)', textTransform:'uppercase', fontFamily:'system-ui', fontWeight:600 }}>Sammelbuch</div>
-          <div style={{ fontFamily:'Newsreader,serif', fontSize:38, fontWeight:400, color:'#29261b', fontVariantNumeric:'oldstyle-nums', letterSpacing:'-0.015em', marginTop:1 }}>{YEAR}</div>
+          <div style={{ fontFamily:'Newsreader,serif', fontSize:38, fontWeight:400, color:'#29261b', fontVariantNumeric:'oldstyle-nums', letterSpacing:'-0.015em', marginTop:1 }}>{year}</div>
+          {stats.sortedDays.length>0
+            ? <div style={{ fontFamily:'Newsreader,serif', fontStyle:'italic', fontSize:13, color:'rgba(41,38,27,0.55)', marginTop:2 }}>dabei seit {dateFmtLong(parseISO(stats.sortedDays[0]))}</div>
+            : <div style={{ fontFamily:'Newsreader,serif', fontStyle:'italic', fontSize:13, color:'rgba(41,38,27,0.45)', marginTop:2 }}>noch kein Eintrag</div>}
         </div>
         <div style={{ position:'relative', width:64, height:64 }}>
           <svg viewBox="0 0 64 64" width="64" height="64">
@@ -609,18 +595,20 @@ function SammelnScreen({ stats, accent, viz, setViz, goal, onCheckin, checkedInT
         <VizSegment value={viz} onChange={setViz}/>
       </div>
       <div style={{ minHeight:220 }}>
-        {viz==='heat'&&<VizHeatmap stats={stats} accent={accent} todayISO={todayISO}/>}
-        {viz==='line'&&<VizYearline stats={stats} accent={accent} todayISO={todayISO}/>}
-        {viz==='book'&&<VizBook stats={stats} accent={accent} todayISO={todayISO}/>}
+        {viz==='heat'&&<VizHeatmap stats={stats} accent={accent} todayISO={todayISO} year={year}/>}
+        {viz==='month'&&<VizMonth stats={stats} accent={accent} todayISO={todayISO} year={year} onToggle={showDemo?undefined:onToggleDay}/>}
       </div>
       <div style={{ padding:'24px 20px 0' }}>
         <button onClick={onCheckin} disabled={btnDisabled} style={{ width:'100%', padding:'20px 24px', background:btnDisabled?'rgba(41,38,27,0.06)':'#29261b', color:btnDisabled?'rgba(41,38,27,0.55)':'#f6f2ea', border:0, borderRadius:18, fontFamily:'Newsreader,serif', fontSize:21, fontWeight:500, letterSpacing:'-0.005em', display:'flex', alignItems:'center', justifyContent:'space-between', boxShadow:btnDisabled?'none':'0 2px 0 rgba(0,0,0,0.04),0 12px 30px rgba(41,38,27,0.18)', cursor:btnDisabled?'default':'pointer', transition:'all .2s' }}>
-          <span>{checkedInToday?'Heute gestempelt':showDemo?'Demo-Modus':'Heute gebouldert'}</span>
-          <span style={{ fontFamily:'system-ui', fontSize:13, opacity:0.7, fontWeight:500, letterSpacing:'.04em' }}>{checkedInToday?'✓':showDemo?'–':dateFmtShort(TODAY)}</span>
+          <span>{viewingPast?`Archiv ${year}`:checkedInToday?'Heute gestempelt':showDemo?'Demo-Modus':'Heute gebouldert'}</span>
+          <span style={{ fontFamily:'system-ui', fontSize:13, opacity:0.7, fontWeight:500, letterSpacing:'.04em' }}>{viewingPast?'🔒':checkedInToday?'✓':showDemo?'–':dateFmtShort(TODAY)}</span>
         </button>
         <div style={{ fontSize:12, color:'rgba(41,38,27,0.45)', marginTop:10, textAlign:'center', fontFamily:'system-ui' }}>
-          {checkedInToday?`Nice. #${stats.total} dieses Jahr.`:showDemo?`Demo · ${stats.total} Besuche angezeigt.`:`Noch ${remaining} bis zum Jahresziel.`}
+          {viewingPast?`Vergangenes Jahr · ${stats.total} Besuche.`:checkedInToday?`Nice. #${stats.total} dieses Jahr.`:showDemo?`Demo · ${stats.total} Besuche angezeigt.`:`Noch ${remaining} bis zum Jahresziel.`}
         </div>
+        {!showDemo&&onNachtragen&&(
+          <button onClick={onNachtragen} style={{ display:'block', margin:'14px auto 0', padding:'8px 16px', background:'transparent', border:'0.5px solid rgba(41,38,27,0.2)', borderRadius:999, fontFamily:'system-ui', fontSize:13, fontWeight:500, color:'rgba(41,38,27,0.7)', cursor:'pointer' }}>＋ Vergangenen Tag nachtragen</button>
+        )}
       </div>
     </div>
   );
@@ -706,7 +694,7 @@ function ErfolgeScreen({ stats, badges }) {
   );
 }
 
-function MiniHeatmap({ stats, accent }) {
+function MiniHeatmap({ stats, accent, year=YEAR }) {
   const days=new Set(stats.sortedDays);
   return (
     <div style={{ display:'grid', gridTemplateColumns:'14px repeat(31,1fr)', rowGap:2, columnGap:1 }}>
@@ -714,9 +702,9 @@ function MiniHeatmap({ stats, accent }) {
         <React.Fragment key={mi}>
           <div style={{ fontSize:8, color:'rgba(41,38,27,0.4)', fontFamily:'Newsreader,serif', fontStyle:'italic', textAlign:'right', paddingRight:3 }}>{m}</div>
           {[...Array(31)].map((_,di)=>{
-            const dim=new Date(YEAR,mi+1,0).getDate();
+            const dim=new Date(year,mi+1,0).getDate();
             if (di>=dim) return <div key={di}/>;
-            const iso=`${YEAR}-${String(mi+1).padStart(2,'0')}-${String(di+1).padStart(2,'0')}`;
+            const iso=`${year}-${String(mi+1).padStart(2,'0')}-${String(di+1).padStart(2,'0')}`;
             return <div key={di} style={{ aspectRatio:'1', background:days.has(iso)?accent:'rgba(41,38,27,0.07)', borderRadius:1 }}/>;
           })}
         </React.Fragment>
@@ -725,7 +713,7 @@ function MiniHeatmap({ stats, accent }) {
   );
 }
 
-function JahrScreen({ stats, badges, accent }) {
+function JahrScreen({ stats, badges, accent, year=YEAR }) {
   const earned=badges.filter((b)=>b.earned);
   const highlight=earned.slice(-4);
   return (
@@ -736,11 +724,12 @@ function JahrScreen({ stats, badges, accent }) {
       </div>
       <div style={{ padding:'8px 16px 16px' }}>
         <div style={{ background:'#fbf8f1', borderRadius:22, padding:'28px 24px 22px', border:'0.5px solid rgba(41,38,27,0.12)', boxShadow:'0 1px 0 rgba(255,255,255,0.5) inset,0 18px 50px rgba(41,38,27,0.14)', position:'relative', overflow:'hidden' }}>
-          <div style={{ position:'absolute', top:14, right:14, fontFamily:'Newsreader,serif', fontSize:11, letterSpacing:'.2em', color:'rgba(41,38,27,0.45)' }}>MMXXVI</div>
-          <div style={{ fontFamily:'Newsreader,serif', fontSize:13, fontStyle:'italic', color:'rgba(41,38,27,0.6)' }}>Dein Boulder-Jahr</div>
+          <div style={{ position:'absolute', top:14, right:14, fontFamily:'Newsreader,serif', fontSize:11, letterSpacing:'.2em', color:'rgba(41,38,27,0.45)' }}>{toRoman(year)}</div>
+          <div style={{ fontFamily:'Newsreader,serif', fontSize:13, fontStyle:'italic', color:'rgba(41,38,27,0.6)' }}>Dein Boulder-Jahr {year}</div>
           <div style={{ fontFamily:'Newsreader,serif', fontSize:84, fontWeight:400, color:'#29261b', fontVariantNumeric:'oldstyle-nums', letterSpacing:'-0.03em', lineHeight:0.95, marginTop:10 }}>{stats.total}</div>
           <div style={{ fontFamily:'system-ui', fontSize:14, letterSpacing:'.04em', color:'rgba(41,38,27,0.6)', marginTop:4 }}>Besuche · {stats.monthsHit} Monate · {stats.longestStreak} Wochen Streak</div>
-          <div style={{ marginTop:22, marginBottom:8 }}><MiniHeatmap stats={stats} accent={accent}/></div>
+          {stats.sortedDays.length>0&&<div style={{ fontFamily:'Newsreader,serif', fontStyle:'italic', fontSize:13, color:'rgba(41,38,27,0.55)', marginTop:6 }}>dabei seit {dateFmtLong(parseISO(stats.sortedDays[0]))}</div>}
+          <div style={{ marginTop:18, marginBottom:8 }}><MiniHeatmap stats={stats} accent={accent} year={year}/></div>
           <div style={{ borderTop:'0.5px solid rgba(41,38,27,0.15)', marginTop:16, paddingTop:14 }}>
             <div style={{ fontFamily:'Newsreader,serif', fontStyle:'italic', fontSize:15, color:'#29261b', lineHeight:1.4 }}>«Der Berg kennt deinen Namen.»</div>
           </div>
@@ -765,7 +754,7 @@ function BottomNav({ tab, setTab }) {
     { id:'jahr', label:'Jahr', icon:<svg width="22" height="22" viewBox="0 0 22 22" fill="none"><rect x="3.5" y="4.5" width="15" height="14" rx="2" stroke="currentColor" strokeWidth="1.4"/><path d="M3.5 9h15" stroke="currentColor" strokeWidth="1.4"/><path d="M7 3v3M15 3v3" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round"/></svg> },
   ];
   return (
-    <div style={{ position:'absolute', bottom:0, left:0, right:0, padding:'8px 10px 22px', background:'rgba(246,242,234,0.85)', backdropFilter:'blur(20px) saturate(160%)', WebkitBackdropFilter:'blur(20px) saturate(160%)', borderTop:'0.5px solid rgba(41,38,27,0.12)', display:'flex', zIndex:5 }}>
+    <div style={{ position:'absolute', bottom:0, left:0, right:0, padding:'8px 10px calc(14px + env(safe-area-inset-bottom))', background:'rgba(246,242,234,0.85)', backdropFilter:'blur(20px) saturate(160%)', WebkitBackdropFilter:'blur(20px) saturate(160%)', borderTop:'0.5px solid rgba(41,38,27,0.12)', display:'flex', zIndex:5 }}>
       {items.map((it)=>(
         <button key={it.id} onClick={()=>setTab(it.id)} style={{ flex:1, padding:'8px 0 4px', background:'transparent', border:0, display:'flex', flexDirection:'column', alignItems:'center', gap:3, cursor:'pointer', opacity:tab===it.id?1:0.42, transition:'opacity .2s' }}>
           <div style={{ color:'#29261b' }}>{it.icon}</div>
@@ -824,7 +813,7 @@ function StampMotion({ phase, todayDate, accent }) {
       <div style={{ width:180, height:180, border:`3px solid ${accent}`, borderRadius:'50%', display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', color:accent, transform:phase==='in'?'scale(2.4) rotate(-12deg)':'scale(1) rotate(-6deg)', opacity:phase==='in'?0:1, transition:'transform .35s cubic-bezier(.5,1.5,.5,1),opacity .25s', filter:phase==='settle'?'url(#ink-rough)':'none', position:'relative' }}>
         <div style={{ fontFamily:'Newsreader,serif', fontSize:56, fontWeight:500, fontVariantNumeric:'oldstyle-nums', lineHeight:1 }}>{day}</div>
         <div style={{ fontFamily:'system-ui', fontSize:14, fontWeight:700, letterSpacing:'.18em', marginTop:4 }}>{month}</div>
-        <div style={{ position:'absolute', bottom:14, fontFamily:'system-ui', fontSize:9, letterSpacing:'.2em', opacity:0.7 }}>MMXXVI</div>
+        <div style={{ position:'absolute', bottom:14, fontFamily:'system-ui', fontSize:9, letterSpacing:'.2em', opacity:0.7 }}>{ROMAN_YEAR}</div>
         <div style={{ position:'absolute', top:-3, left:-3, right:-3, bottom:-3, border:`1px solid ${accent}`, borderRadius:'50%', opacity:0.5 }}/>
       </div>
     </div>
@@ -883,6 +872,66 @@ function CheckinMoment({ motion, total, todayDate, accent, onDone }) {
 // ─────────────────────────────────────────────────────────────
 const ACCENT_OPTIONS = ['#6b6862','#6b7a4b','#b3543a','#4a5a6a'];
 
+// Vollbild-Dialog zum Nachtragen vergangener Tage (nutzt die editierbare Monatsansicht)
+function NachtragenDialog({ year, checkins, accent, onToggle, onClose }) {
+  return (
+    <div style={{ position:'absolute', inset:0, zIndex:150, background:'rgba(246,242,234,0.98)', backdropFilter:'blur(10px)', WebkitBackdropFilter:'blur(10px)', display:'flex', flexDirection:'column', padding:'calc(env(safe-area-inset-top) + 28px) 22px calc(env(safe-area-inset-bottom) + 24px)', overflowY:'auto' }}>
+      <div style={{ display:'flex', alignItems:'flex-start', justifyContent:'space-between', gap:12 }}>
+        <div>
+          <div style={{ fontSize:12, letterSpacing:'.16em', color:'rgba(41,38,27,0.5)', textTransform:'uppercase', fontFamily:'system-ui', fontWeight:600 }}>Nachtragen</div>
+          <div style={{ fontFamily:'Newsreader,serif', fontSize:32, fontWeight:400, color:'#29261b', letterSpacing:'-0.015em', lineHeight:1.1, marginTop:6 }}>Vergessenen Tag eintragen</div>
+        </div>
+        <button onClick={onClose} aria-label="Schließen" style={{ flexShrink:0, width:34, height:34, borderRadius:'50%', border:0, background:'rgba(41,38,27,0.08)', color:'#29261b', fontSize:15, cursor:'pointer', lineHeight:1 }}>✕</button>
+      </div>
+      <div style={{ fontFamily:'Newsreader,serif', fontStyle:'italic', fontSize:15, color:'rgba(41,38,27,0.6)', lineHeight:1.4, margin:'14px 0 8px', maxWidth:320 }}>
+        Tippe einen Tag an — er wird gestempelt. Nochmal tippen entfernt ihn wieder.
+      </div>
+      <div style={{ marginTop:8 }}>
+        <VizMonth stats={{ sortedDays: checkins }} accent={accent} todayISO={isoDay(TODAY)} year={year} onToggle={onToggle}/>
+      </div>
+      <button onClick={onClose} style={{ marginTop:'auto', padding:'16px 24px', background:'#29261b', color:'#f6f2ea', border:0, borderRadius:16, fontFamily:'Newsreader,serif', fontSize:18, fontWeight:500, cursor:'pointer', boxShadow:'0 12px 30px rgba(41,38,27,0.18)' }}>Fertig</button>
+    </div>
+  );
+}
+
+// Mini-Kalender im Tweaks-Panel zum Nachtragen/Löschen einzelner Tage
+function DayEditor({ year, checkins, accent, onToggle }) {
+  const set=new Set(checkins);
+  const monthNames=['Januar','Februar','März','April','Mai','Juni','Juli','August','September','Oktober','November','Dezember'];
+  const [m,setM]=React.useState(()=> year===YEAR ? new Date().getMonth() : 0);
+  React.useEffect(()=>{ setM(year===YEAR ? new Date().getMonth() : 0); },[year]);
+  const dim=new Date(year,m+1,0).getDate();
+  const startDow=(new Date(year,m,1).getDay()+6)%7; // Montag = 0
+  const todayISO=isoDay(TODAY);
+  const cells=[]; for (let i=0;i<startDow;i++) cells.push(null); for (let d=1;d<=dim;d++) cells.push(d);
+  const navBtn={appearance:'none',border:0,background:'rgba(0,0,0,.06)',borderRadius:6,width:24,height:22,cursor:'pointer',color:'inherit',fontSize:14,lineHeight:1,display:'flex',alignItems:'center',justifyContent:'center'};
+  return (
+    <div className="twk-row">
+      <div className="twk-lbl" style={{justifyContent:'space-between',alignItems:'center'}}>
+        <button type="button" style={{...navBtn,opacity:m===0?0.35:1}} onClick={()=>setM(Math.max(0,m-1))} disabled={m===0}>‹</button>
+        <span style={{fontWeight:500}}>{monthNames[m]} {year}</span>
+        <button type="button" style={{...navBtn,opacity:m===11?0.35:1}} onClick={()=>setM(Math.min(11,m+1))} disabled={m===11}>›</button>
+      </div>
+      <div style={{display:'grid',gridTemplateColumns:'repeat(7,1fr)',gap:3,marginTop:5}}>
+        {['M','D','M','D','F','S','S'].map((w,i)=><div key={i} style={{textAlign:'center',fontSize:9,color:'rgba(41,38,27,.4)',fontWeight:600}}>{w}</div>)}
+        {cells.map((d,i)=>{
+          if (d===null) return <div key={i}/>;
+          const iso=`${year}-${String(m+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+          const hit=set.has(iso), future=iso>todayISO;
+          return (
+            <button key={i} type="button" disabled={future} onClick={()=>onToggle(iso)}
+              style={{appearance:'none',border:hit?`1px solid ${accent}`:'1px solid transparent',borderRadius:6,height:26,padding:0,
+                cursor:future?'default':'pointer',background:hit?accent:'rgba(0,0,0,.05)',
+                color:hit?'#fff':(future?'rgba(41,38,27,.22)':'rgba(41,38,27,.7)'),fontSize:11,fontWeight:500,
+                fontVariantNumeric:'tabular-nums',opacity:future?0.5:1}}>{d}</button>
+          );
+        })}
+      </div>
+      <div style={{fontSize:10,color:'rgba(41,38,27,.45)',marginTop:6,lineHeight:1.3}}>Tag antippen = Besuch ein/aus.</div>
+    </div>
+  );
+}
+
 function loadAppData() {
   try {
     return {
@@ -900,11 +949,17 @@ function App() {
   const [motion, setMotion]=React.useState('stamp');
   const [showDemo, setShowDemo]=React.useState(false);
   const [appData, setAppData]=React.useState(loadAppData);
+  const [year, setYear]=React.useState(YEAR);          // angezeigtes Jahr (Archiv-Ansicht)
   const [checkinActive, setCheckinActive]=React.useState(false);
   const [onboardingActive, setOnboardingActive]=React.useState(!loadAppData().onboarded);
+  const [nachtragenOpen, setNachtragenOpen]=React.useState(false);
+  const fileInputRef=React.useRef(null);
 
   // Remove loading indicator once React has mounted
   React.useEffect(() => { document.getElementById('loading')?.remove(); }, []);
+
+  // Check-ins neu laden, wenn das angezeigte Jahr wechselt
+  React.useEffect(()=>{ setAppData((d)=>({...d, checkins: loadCheckins(year)})); },[year]);
 
   const todayISO=isoDay(TODAY);
 
@@ -917,7 +972,7 @@ function App() {
   const badges=React.useMemo(()=>earnedBadges(stats),[stats]);
   const checkedInToday=activeCheckins.includes(todayISO);
 
-  const onCheckin=()=>{ if (!showDemo && !checkedInToday) setCheckinActive(true); };
+  const onCheckin=()=>{ if (!showDemo && !checkedInToday && year===YEAR) setCheckinActive(true); };
   const onCheckinDone=()=>{
     setCheckinActive(false);
     if (!showDemo && !checkedInToday) {
@@ -935,26 +990,77 @@ function App() {
     localStorage.setItem('sb-accent',accent);
     setAppData((d)=>({...d,accent}));
   };
-  const resetAll=()=>{
-    localStorage.removeItem(`sb-checkins-${YEAR}`);
-    localStorage.removeItem('sb-goal');
-    localStorage.removeItem('sb-accent');
-    localStorage.removeItem('sb-onboarded');
-    setAppData({checkins:[],goal:40,accent:'#6b6862',onboarded:false});
-    setOnboardingActive(true);
+  // Einzelnen Tag im angezeigten Jahr nachtragen/löschen
+  const toggleDay=(iso)=>{
+    const cur=new Set(loadCheckins(year));
+    if (cur.has(iso)) cur.delete(iso); else cur.add(iso);
+    const next=[...cur].sort();
+    localStorage.setItem(`sb-checkins-${year}`,JSON.stringify(next));
+    setAppData((d)=>({...d,checkins:next}));
   };
 
+  // Backup: alle sb-* Schlüssel als JSON-Datei herunterladen
+  const exportData=()=>{
+    const data={};
+    for (let i=0;i<localStorage.length;i++){ const k=localStorage.key(i); if (k && k.startsWith('sb-')) data[k]=localStorage.getItem(k); }
+    const payload={ app:'sammelbuch', version:1, exportedAt:new Date().toISOString(), data };
+    const blob=new Blob([JSON.stringify(payload,null,2)],{type:'application/json'});
+    const url=URL.createObjectURL(blob);
+    const a=document.createElement('a');
+    a.href=url; a.download=`sammelbuch-backup-${isoDay(TODAY)}.json`;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(()=>URL.revokeObjectURL(url),1000);
+  };
+
+  // Backup einlesen: sb-* Schlüssel überschreiben und Ansicht neu laden
+  const importData=(file)=>{
+    const r=new FileReader();
+    r.onload=()=>{
+      try {
+        const parsed=JSON.parse(r.result);
+        const d=parsed.data||parsed;
+        let n=0;
+        Object.entries(d).forEach(([k,v])=>{ if (k.startsWith('sb-')){ localStorage.setItem(k, typeof v==='string'?v:JSON.stringify(v)); n++; } });
+        if (!n) { alert('Keine Sammelbuch-Daten in der Datei gefunden.'); return; }
+        const fresh=loadAppData();
+        setAppData({...fresh, checkins:loadCheckins(year)});
+        setOnboardingActive(false);
+        alert(`Backup geladen ✓ (${n} Einträge)`);
+      } catch { alert('Konnte die Datei nicht lesen. Ist es ein Sammelbuch-Backup?'); }
+    };
+    r.readAsText(file);
+  };
+
+  const resetAll=()=>{
+    if (!confirm(`Wirklich alle Daten für ${year} zurücksetzen? Mach vorher ein Backup.`)) return;
+    localStorage.removeItem(`sb-checkins-${year}`);
+    if (year===YEAR) {
+      localStorage.removeItem('sb-goal');
+      localStorage.removeItem('sb-accent');
+      localStorage.removeItem('sb-onboarded');
+      setAppData({checkins:[],goal:40,accent:'#6b6862',onboarded:false});
+      setOnboardingActive(true);
+    } else {
+      setAppData((d)=>({...d,checkins:[]}));
+    }
+  };
+
+  const years=availableYears();
+
   return (
-    <IOSDevice width={402} height={874}>
+    <IOSDevice>
+      <input ref={fileInputRef} type="file" accept="application/json,.json" style={{display:'none'}}
+        onChange={(e)=>{ const f=e.target.files&&e.target.files[0]; if (f) importData(f); e.target.value=''; }}/>
       <div style={{ position:'absolute', inset:0, background:'#f6f2ea', color:'#29261b', overflow:'hidden' }}>
         <div style={{ position:'absolute', inset:0, overflowY:'auto', overflowX:'hidden', WebkitOverflowScrolling:'touch' }}>
-          {tab==='sammeln'&&<SammelnScreen stats={stats} accent={appData.accent} viz={viz} setViz={setViz} goal={appData.goal} onCheckin={onCheckin} checkedInToday={checkedInToday} todayISO={todayISO} showDemo={showDemo}/>}
+          {tab==='sammeln'&&<SammelnScreen stats={stats} accent={appData.accent} viz={viz} setViz={setViz} goal={appData.goal} onCheckin={onCheckin} checkedInToday={checkedInToday} todayISO={todayISO} showDemo={showDemo} year={year} onToggleDay={toggleDay} onNachtragen={()=>setNachtragenOpen(true)}/>}
           {tab==='erfolge'&&<ErfolgeScreen stats={stats} badges={badges}/>}
-          {tab==='jahr'&&<JahrScreen stats={stats} badges={badges} accent={appData.accent}/>}
+          {tab==='jahr'&&<JahrScreen stats={stats} badges={badges} accent={appData.accent} year={year}/>}
         </div>
         <BottomNav tab={tab} setTab={setTab}/>
         {checkinActive&&<CheckinMoment motion={motion} total={stats.total+(checkedInToday?0:1)} todayDate={TODAY} accent={appData.accent} onDone={onCheckinDone}/>}
         {onboardingActive&&<Onboarding accent={appData.accent} onDone={(goal)=>{ setGoal(goal); localStorage.setItem('sb-onboarded','1'); setAppData((d)=>({...d,onboarded:true,goal})); setOnboardingActive(false); }}/>}
+        {nachtragenOpen&&<NachtragenDialog year={year} checkins={appData.checkins} accent={appData.accent} onToggle={toggleDay} onClose={()=>setNachtragenOpen(false)}/>}
       </div>
 
       <TweaksPanel title="Tweaks">
@@ -962,16 +1068,26 @@ function App() {
           <TweakColor label="Akzent" value={appData.accent} options={ACCENT_OPTIONS} onChange={setAccent}/>
         </TweakSection>
         <TweakSection label="Visualisierung">
-          <TweakRadio label="Ansicht" value={viz} options={[{value:'heat',label:'Kal.'},{value:'line',label:'Linie'},{value:'book',label:'Heft'}]} onChange={setViz}/>
+          <TweakRadio label="Ansicht" value={viz} options={[{value:'heat',label:'Jahr'},{value:'month',label:'Monat'}]} onChange={setViz}/>
           <TweakSlider label="Jahresziel" value={appData.goal} min={10} max={120} step={5} unit=" Bes." onChange={setGoal}/>
         </TweakSection>
         <TweakSection label="Check-in">
           <TweakRadio label="Animation" value={motion} options={[{value:'stamp',label:'Stempel'},{value:'fill',label:'Füllen'},{value:'rustle',label:'Rascheln'}]} onChange={setMotion}/>
           <TweakButton label="Vorschau abspielen" onClick={()=>setCheckinActive(true)} secondary/>
         </TweakSection>
+        {years.length>1&&(
+          <TweakSection label="Jahr">
+            <TweakRadio label="Anzeigen" value={year} options={years.map((y)=>({value:y,label:String(y)}))} onChange={setYear}/>
+          </TweakSection>
+        )}
+        <TweakSection label="Tage nachtragen">
+          <DayEditor year={year} checkins={appData.checkins} accent={appData.accent} onToggle={toggleDay}/>
+        </TweakSection>
         <TweakSection label="Daten">
+          <TweakButton label="Backup sichern (Download)" secondary onClick={exportData}/>
+          <TweakButton label="Backup laden" secondary onClick={()=>fileInputRef.current&&fileInputRef.current.click()}/>
           <TweakToggle label="Demo-Daten anzeigen" value={showDemo} onChange={setShowDemo}/>
-          <TweakButton label="Alles zurücksetzen" secondary onClick={resetAll}/>
+          <TweakButton label={`${year} zurücksetzen`} secondary onClick={resetAll}/>
         </TweakSection>
       </TweaksPanel>
     </IOSDevice>
