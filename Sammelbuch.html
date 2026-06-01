@@ -237,12 +237,21 @@ function TweaksPanel({ title='Tweaks', children }) {
     };
   }, []);
 
+  // Das Zahnrad (#tweaks-btn) liegt als <body>-Kind über dem #root-Stacking-Context
+  // und damit über dem Panel. Solange offen, ausblenden — sonst überdeckt es den ✕.
+  React.useEffect(() => {
+    const gearBtn = document.getElementById('tweaks-btn');
+    if (gearBtn) gearBtn.style.display = open ? 'none' : '';
+    return () => { if (gearBtn) gearBtn.style.display = ''; };
+  }, [open]);
+
   const dismiss = () => {
     setOpen(false);
     window.parent.postMessage({ type:'__edit_mode_dismissed' }, '*');
   };
 
   const onDragStart = (e) => {
+    if (e.target.closest('button')) return;   // Taps auf Bedienelemente (✕) dürfen kein Verschieben auslösen
     const panel = dragRef.current; if (!panel) return;
     const r = panel.getBoundingClientRect();
     const sx=e.clientX, sy=e.clientY;
@@ -256,6 +265,7 @@ function TweaksPanel({ title='Tweaks', children }) {
   return (
     <>
       <style>{__TWEAKS_STYLE}</style>
+      <div onClick={dismiss} style={{ position:'fixed', inset:0, zIndex:2147483645, background:'transparent' }} />
       <div ref={dragRef} className="twk-panel" style={{ right:offsetRef.current.x, bottom:offsetRef.current.y }}>
         <div className="twk-hd" onMouseDown={onDragStart}>
           <b>{title}</b>
@@ -1073,7 +1083,6 @@ function App() {
         </TweakSection>
         <TweakSection label="Check-in">
           <TweakRadio label="Animation" value={motion} options={[{value:'stamp',label:'Stempel'},{value:'fill',label:'Füllen'},{value:'rustle',label:'Rascheln'}]} onChange={setMotion}/>
-          <TweakButton label="Vorschau abspielen" onClick={()=>setCheckinActive(true)} secondary/>
         </TweakSection>
         {years.length>1&&(
           <TweakSection label="Jahr">
