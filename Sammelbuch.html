@@ -528,8 +528,9 @@ function VizMonth({ stats, accent, todayISO, year=YEAR, levels={}, onToggle, onS
   const goMonth=(nm)=>{ setM(nm); setSel(null); };
   const onCell=(iso,hit)=>{
     if (!editable) return;
-    if (!hit) { onToggle(iso); setSel(iso); }      // hinzufügen (normal) + auswählen
-    else setSel(sel===iso?null:iso);                // auswählen zum Stufe-Ändern / abwählen
+    if (!hit) { onToggle(iso); setSel(iso); }        // leer → hinzufügen (normal) + auswählen
+    else if (sel===iso) { onToggle(iso); setSel(null); }  // ausgewählten Tag erneut antippen → wieder entfernen
+    else setSel(iso);                                // anderen belegten Tag → auswählen (Stufe ändern / Entfernen)
   };
   return (
     <div style={{ padding:'8px 18px 4px', fontFamily:'system-ui,-apple-system,sans-serif' }}>
