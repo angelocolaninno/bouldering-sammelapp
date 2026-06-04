@@ -653,7 +653,7 @@ function SammelnScreen({ stats, accent, viz, setViz, goal, onCheckin, checkedInT
       </div>
       <div style={{ minHeight:220 }}>
         {viz==='heat'&&<VizHeatmap stats={stats} accent={accent} todayISO={todayISO} year={year} levels={levels}/>}
-        {viz==='month'&&<VizMonth stats={stats} accent={accent} todayISO={todayISO} year={year} levels={levels} onToggle={showDemo?undefined:onToggleDay} onSetLevel={showDemo?undefined:onSetLevel}/>}
+        {viz==='month'&&<VizMonth stats={stats} accent={accent} todayISO={todayISO} year={year} levels={levels}/>}{/* nur Anzeige — Bearbeiten über „Vergangenen Tag nachtragen" */}
       </div>
       <div style={{ padding:'24px 20px 0' }}>
         <button onClick={onCheckin} disabled={btnDisabled} style={{ width:'100%', padding:'20px 24px', background:btnDisabled?'rgba(41,38,27,0.06)':'#29261b', color:btnDisabled?'rgba(41,38,27,0.55)':'#f6f2ea', border:0, borderRadius:18, fontFamily:'Newsreader,serif', fontSize:21, fontWeight:500, letterSpacing:'-0.005em', display:'flex', alignItems:'center', justifyContent:'space-between', boxShadow:btnDisabled?'none':'0 2px 0 rgba(0,0,0,0.04),0 12px 30px rgba(41,38,27,0.18)', cursor:btnDisabled?'default':'pointer', transition:'all .2s' }}>
