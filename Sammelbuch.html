@@ -73,6 +73,22 @@ const ROMAN_YEAR = toRoman(YEAR);
 function loadCheckins(year) {
   try { return JSON.parse(localStorage.getItem(`sb-checkins-${year}`) || '[]'); } catch { return []; }
 }
+// Anstrengungs-Level pro Tag (sparse: nur abweichende von 'normal' werden gespeichert)
+function loadLevels(year) {
+  try { return JSON.parse(localStorage.getItem(`sb-levels-${year}`) || '{}'); } catch { return {}; }
+}
+
+// ── Farben: Akzent zu 'leicht' (heller, Richtung Papier) / 'stark' (dunkler, Richtung Tinte) mischen ──
+const PAPER='#f6f2ea', INK='#29261b';
+function hexToRgb(h){ h=h.replace('#',''); if(h.length===3) h=h.split('').map((c)=>c+c).join(''); return [parseInt(h.slice(0,2),16),parseInt(h.slice(2,4),16),parseInt(h.slice(4,6),16)]; }
+function rgbToHex(r,g,b){ return '#'+[r,g,b].map((x)=>Math.max(0,Math.min(255,Math.round(x))).toString(16).padStart(2,'0')).join(''); }
+function mixHex(a,b,t){ const [r1,g1,b1]=hexToRgb(a),[r2,g2,b2]=hexToRgb(b); return rgbToHex(r1+(r2-r1)*t,g1+(g2-g1)*t,b1+(b2-b1)*t); }
+function levelColor(accent, level){
+  if (level==='leicht') return mixHex(accent, PAPER, 0.58);
+  if (level==='stark')  return mixHex(accent, INK, 0.5);
+  return accent; // normal
+}
+const LEVEL_OPTS=[{v:'leicht',label:'Leicht'},{v:'normal',label:'Normal'},{v:'stark',label:'Stark'}];
 // Alle Jahre, für die Daten existieren (plus aktuelles Jahr), absteigend sortiert
 function availableYears() {
   const years=new Set([YEAR]);
@@ -461,7 +477,7 @@ function AlpinBadgeLocked({ size=96 }) {
 // ─────────────────────────────────────────────────────────────
 // VISUALIZATIONS
 // ─────────────────────────────────────────────────────────────
-function VizHeatmap({ stats, accent, todayISO, year=YEAR }) {
+function VizHeatmap({ stats, accent, todayISO, year=YEAR, levels={} }) {
   const days=new Set(stats.sortedDays);
   const months=['Jan','Feb','Mär','Apr','Mai','Jun','Jul','Aug','Sep','Okt','Nov','Dez'];
   return (
@@ -484,7 +500,7 @@ function VizHeatmap({ stats, accent, todayISO, year=YEAR }) {
                 const hit=days.has(iso), isToday=iso===todayISO, future=iso>todayISO;
                 return (
                   <div key={di} style={{ width:'100%', aspectRatio:'1', display:'flex', alignItems:'center', justifyContent:'center' }}>
-                    <div style={{ width:hit?'85%':'40%', aspectRatio:'1', borderRadius:'50%', background:hit?accent:(future?'transparent':'rgba(41,38,27,0.08)'), border:isToday&&!hit?`1px dashed ${accent}`:'none', boxShadow:isToday&&hit?`0 0 0 2px rgba(41,38,27,0.12)`:'none', transition:'background .25s' }}/>
+                    <div style={{ width:hit?'85%':'40%', aspectRatio:'1', borderRadius:'50%', background:hit?levelColor(accent,levels[iso]||'normal'):(future?'transparent':'rgba(41,38,27,0.08)'), border:isToday&&!hit?`1px dashed ${accent}`:'none', boxShadow:isToday&&hit?`0 0 0 2px rgba(41,38,27,0.12)`:'none', transition:'background .25s' }}/>
                   </div>
                 );
               })}
@@ -496,26 +512,34 @@ function VizHeatmap({ stats, accent, todayISO, year=YEAR }) {
   );
 }
 
-function VizMonth({ stats, accent, todayISO, year=YEAR, onToggle }) {
+function VizMonth({ stats, accent, todayISO, year=YEAR, levels={}, onToggle, onSetLevel }) {
   const set=new Set(stats.sortedDays);
   const monthNames=['Januar','Februar','März','April','Mai','Juni','Juli','August','September','Oktober','November','Dezember'];
   const [m,setM]=React.useState(()=> year===YEAR ? new Date().getMonth() : 0);
-  React.useEffect(()=>{ setM(year===YEAR ? new Date().getMonth() : 0); },[year]);
+  const [sel,setSel]=React.useState(null);   // ausgewählter Tag für die Stufen-Bearbeitung
+  React.useEffect(()=>{ setM(year===YEAR ? new Date().getMonth() : 0); setSel(null); },[year]);
   const dim=new Date(year,m+1,0).getDate();
   const startDow=(new Date(year,m,1).getDay()+6)%7; // Montag = 0
   const prefix=`${year}-${String(m+1).padStart(2,'0')}`;
   const monthCount=[...set].filter((d)=>d.startsWith(prefix)).length;
   const cells=[]; for (let i=0;i<startDow;i++) cells.push(null); for (let d=1;d<=dim;d++) cells.push(d);
   const arrow={appearance:'none',border:0,background:'transparent',color:'rgba(41,38,27,0.55)',fontSize:22,lineHeight:1,cursor:'pointer',padding:'0 8px',fontFamily:'Newsreader,serif'};
+  const editable=!!onToggle;
+  const goMonth=(nm)=>{ setM(nm); setSel(null); };
+  const onCell=(iso,hit)=>{
+    if (!editable) return;
+    if (!hit) { onToggle(iso); setSel(iso); }      // hinzufügen (normal) + auswählen
+    else setSel(sel===iso?null:iso);                // auswählen zum Stufe-Ändern / abwählen
+  };
   return (
     <div style={{ padding:'8px 18px 4px', fontFamily:'system-ui,-apple-system,sans-serif' }}>
       <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:10 }}>
-        <button type="button" style={{...arrow,opacity:m===0?0.3:1}} onClick={()=>setM(Math.max(0,m-1))} disabled={m===0}>‹</button>
+        <button type="button" style={{...arrow,opacity:m===0?0.3:1}} onClick={()=>goMonth(Math.max(0,m-1))} disabled={m===0}>‹</button>
         <div style={{ textAlign:'center' }}>
           <div style={{ fontFamily:'Newsreader,serif', fontSize:22, fontWeight:500, color:'#29261b', letterSpacing:'-0.01em', lineHeight:1.1 }}>{monthNames[m]}</div>
           <div style={{ fontSize:10, letterSpacing:'.1em', textTransform:'uppercase', color:'rgba(41,38,27,0.45)', fontWeight:600, marginTop:2 }}>{monthCount===0?'noch leer':`${monthCount} ${monthCount===1?'Besuch':'Besuche'}`}</div>
         </div>
-        <button type="button" style={{...arrow,opacity:m===11?0.3:1}} onClick={()=>setM(Math.min(11,m+1))} disabled={m===11}>›</button>
+        <button type="button" style={{...arrow,opacity:m===11?0.3:1}} onClick={()=>goMonth(Math.min(11,m+1))} disabled={m===11}>›</button>
       </div>
       <div style={{ display:'grid', gridTemplateColumns:'repeat(7,1fr)', gap:4 }}>
         {['Mo','Di','Mi','Do','Fr','Sa','So'].map((w,i)=>(
@@ -524,23 +548,45 @@ function VizMonth({ stats, accent, todayISO, year=YEAR, onToggle }) {
         {cells.map((d,i)=>{
           if (d===null) return <div key={i}/>;
           const iso=`${prefix}-${String(d).padStart(2,'0')}`;
-          const hit=set.has(iso), isToday=iso===todayISO, future=iso>todayISO;
+          const hit=set.has(iso), isToday=iso===todayISO, future=iso>todayISO, isSel=sel===iso;
+          const fill=hit?levelColor(accent, levels[iso]||'normal'):'transparent';
           const circle=(
             <div style={{ width:'82%', aspectRatio:'1', borderRadius:'50%', display:'flex', alignItems:'center', justifyContent:'center',
-              background:hit?accent:'transparent', border:isToday&&!hit?`1.2px dashed ${accent}`:'none',
+              background:fill, border:isToday&&!hit?`1.2px dashed ${accent}`:'none',
               fontFamily:'Newsreader,serif', fontVariantNumeric:'oldstyle-nums', fontSize:16,
               color:hit?'#f6f0e1':(future?'rgba(41,38,27,0.28)':'rgba(41,38,27,0.7)'),
-              boxShadow:hit?'0 1px 4px rgba(41,38,27,0.18)':'none', transition:'background .25s,color .25s' }}>{d}</div>
+              boxShadow:isSel?`0 0 0 2px ${accent}`:(hit?'0 1px 4px rgba(41,38,27,0.18)':'none'), transition:'background .25s,color .25s,box-shadow .15s' }}>{d}</div>
           );
-          if (onToggle && !future) {
+          if (editable && !future) {
             return (
-              <button key={i} type="button" onClick={()=>onToggle(iso)}
+              <button key={i} type="button" onClick={()=>onCell(iso,hit)}
                 style={{ aspectRatio:'1', display:'flex', alignItems:'center', justifyContent:'center', border:0, background:'transparent', padding:0, cursor:'pointer', WebkitTapHighlightColor:'transparent' }}>{circle}</button>
             );
           }
           return <div key={i} style={{ aspectRatio:'1', display:'flex', alignItems:'center', justifyContent:'center' }}>{circle}</div>;
         })}
       </div>
+      {editable && onSetLevel && sel && (
+        <div style={{ marginTop:14, padding:'12px 14px', background:'#fbf8f1', borderRadius:14, border:'0.5px solid rgba(41,38,27,0.12)' }}>
+          <div style={{ display:'flex', alignItems:'baseline', justifyContent:'space-between', marginBottom:8 }}>
+            <span style={{ fontFamily:'Newsreader,serif', fontSize:15, color:'#29261b' }}>{dateFmtLong(parseISO(sel))} · Anstrengung</span>
+            <button type="button" onClick={()=>{ onToggle(sel); setSel(null); }} style={{ appearance:'none', border:0, background:'transparent', color:'rgba(179,84,58,0.85)', fontSize:12, fontWeight:600, cursor:'pointer' }}>Entfernen</button>
+          </div>
+          <div style={{ display:'flex', gap:8 }}>
+            {LEVEL_OPTS.map((o)=>{
+              const on=(levels[sel]||'normal')===o.v;
+              return (
+                <button key={o.v} type="button" onClick={()=>onSetLevel(sel,o.v)}
+                  style={{ flex:1, padding:'9px 0', borderRadius:999, border:on?`1px solid ${accent}`:'0.5px solid rgba(41,38,27,0.2)',
+                    background:on?accent:'rgba(41,38,27,0.04)', color:on?'#f6f0e1':'#29261b', fontSize:13, fontWeight:500, cursor:'pointer',
+                    display:'flex', alignItems:'center', justifyContent:'center', gap:6 }}>
+                  <span style={{ width:9, height:9, borderRadius:'50%', background:on?'#f6f0e1':levelColor(accent,o.v) }}/>{o.label}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -570,7 +616,7 @@ function VizSegment({ value, onChange }) {
   );
 }
 
-function SammelnScreen({ stats, accent, viz, setViz, goal, onCheckin, checkedInToday, todayISO, showDemo, year=YEAR, onToggleDay, onNachtragen }) {
+function SammelnScreen({ stats, accent, viz, setViz, goal, onCheckin, checkedInToday, todayISO, showDemo, year=YEAR, levels={}, onToggleDay, onSetLevel, onNachtragen }) {
   const remaining=Math.max(0,goal-stats.total);
   const goalPct=Math.min(100,Math.round((stats.total/goal)*100));
   const viewingPast=year!==YEAR;
@@ -605,8 +651,8 @@ function SammelnScreen({ stats, accent, viz, setViz, goal, onCheckin, checkedInT
         <VizSegment value={viz} onChange={setViz}/>
       </div>
       <div style={{ minHeight:220 }}>
-        {viz==='heat'&&<VizHeatmap stats={stats} accent={accent} todayISO={todayISO} year={year}/>}
-        {viz==='month'&&<VizMonth stats={stats} accent={accent} todayISO={todayISO} year={year} onToggle={showDemo?undefined:onToggleDay}/>}
+        {viz==='heat'&&<VizHeatmap stats={stats} accent={accent} todayISO={todayISO} year={year} levels={levels}/>}
+        {viz==='month'&&<VizMonth stats={stats} accent={accent} todayISO={todayISO} year={year} levels={levels} onToggle={showDemo?undefined:onToggleDay} onSetLevel={showDemo?undefined:onSetLevel}/>}
       </div>
       <div style={{ padding:'24px 20px 0' }}>
         <button onClick={onCheckin} disabled={btnDisabled} style={{ width:'100%', padding:'20px 24px', background:btnDisabled?'rgba(41,38,27,0.06)':'#29261b', color:btnDisabled?'rgba(41,38,27,0.55)':'#f6f2ea', border:0, borderRadius:18, fontFamily:'Newsreader,serif', fontSize:21, fontWeight:500, letterSpacing:'-0.005em', display:'flex', alignItems:'center', justifyContent:'space-between', boxShadow:btnDisabled?'none':'0 2px 0 rgba(0,0,0,0.04),0 12px 30px rgba(41,38,27,0.18)', cursor:btnDisabled?'default':'pointer', transition:'all .2s' }}>
@@ -704,7 +750,7 @@ function ErfolgeScreen({ stats, badges }) {
   );
 }
 
-function MiniHeatmap({ stats, accent, year=YEAR }) {
+function MiniHeatmap({ stats, accent, year=YEAR, levels={} }) {
   const days=new Set(stats.sortedDays);
   return (
     <div style={{ display:'grid', gridTemplateColumns:'14px repeat(31,1fr)', rowGap:2, columnGap:1 }}>
@@ -715,7 +761,7 @@ function MiniHeatmap({ stats, accent, year=YEAR }) {
             const dim=new Date(year,mi+1,0).getDate();
             if (di>=dim) return <div key={di}/>;
             const iso=`${year}-${String(mi+1).padStart(2,'0')}-${String(di+1).padStart(2,'0')}`;
-            return <div key={di} style={{ aspectRatio:'1', background:days.has(iso)?accent:'rgba(41,38,27,0.07)', borderRadius:1 }}/>;
+            return <div key={di} style={{ aspectRatio:'1', background:days.has(iso)?levelColor(accent,levels[iso]||'normal'):'rgba(41,38,27,0.07)', borderRadius:1 }}/>;
           })}
         </React.Fragment>
       ))}
@@ -723,7 +769,7 @@ function MiniHeatmap({ stats, accent, year=YEAR }) {
   );
 }
 
-function JahrScreen({ stats, badges, accent, year=YEAR }) {
+function JahrScreen({ stats, badges, accent, year=YEAR, levels={} }) {
   const earned=badges.filter((b)=>b.earned);
   const highlight=earned.slice(-4);
   return (
@@ -739,7 +785,7 @@ function JahrScreen({ stats, badges, accent, year=YEAR }) {
           <div style={{ fontFamily:'Newsreader,serif', fontSize:84, fontWeight:400, color:'#29261b', fontVariantNumeric:'oldstyle-nums', letterSpacing:'-0.03em', lineHeight:0.95, marginTop:10 }}>{stats.total}</div>
           <div style={{ fontFamily:'system-ui', fontSize:14, letterSpacing:'.04em', color:'rgba(41,38,27,0.6)', marginTop:4 }}>Besuche · {stats.monthsHit} Monate · {stats.longestStreak} Wochen Streak</div>
           {stats.sortedDays.length>0&&<div style={{ fontFamily:'Newsreader,serif', fontStyle:'italic', fontSize:13, color:'rgba(41,38,27,0.55)', marginTop:6 }}>dabei seit {dateFmtLong(parseISO(stats.sortedDays[0]))}</div>}
-          <div style={{ marginTop:18, marginBottom:8 }}><MiniHeatmap stats={stats} accent={accent} year={year}/></div>
+          <div style={{ marginTop:18, marginBottom:8 }}><MiniHeatmap stats={stats} accent={accent} year={year} levels={levels}/></div>
           <div style={{ borderTop:'0.5px solid rgba(41,38,27,0.15)', marginTop:16, paddingTop:14 }}>
             <div style={{ fontFamily:'Newsreader,serif', fontStyle:'italic', fontSize:15, color:'#29261b', lineHeight:1.4 }}>«Der Berg kennt deinen Namen.»</div>
           </div>
@@ -883,7 +929,7 @@ function CheckinMoment({ motion, total, todayDate, accent, onDone }) {
 const ACCENT_OPTIONS = ['#6b6862','#6b7a4b','#b3543a','#4a5a6a'];
 
 // Vollbild-Dialog zum Nachtragen vergangener Tage (nutzt die editierbare Monatsansicht)
-function NachtragenDialog({ year, checkins, accent, onToggle, onClose }) {
+function NachtragenDialog({ year, checkins, accent, levels={}, onToggle, onSetLevel, onClose }) {
   return (
     <div style={{ position:'absolute', inset:0, zIndex:150, background:'rgba(246,242,234,0.98)', backdropFilter:'blur(10px)', WebkitBackdropFilter:'blur(10px)', display:'flex', flexDirection:'column', padding:'calc(env(safe-area-inset-top) + 28px) 22px calc(env(safe-area-inset-bottom) + 24px)', overflowY:'auto' }}>
       <div style={{ display:'flex', alignItems:'flex-start', justifyContent:'space-between', gap:12 }}>
@@ -897,9 +943,36 @@ function NachtragenDialog({ year, checkins, accent, onToggle, onClose }) {
         Tippe einen Tag an — er wird gestempelt. Nochmal tippen entfernt ihn wieder.
       </div>
       <div style={{ marginTop:8 }}>
-        <VizMonth stats={{ sortedDays: checkins }} accent={accent} todayISO={isoDay(TODAY)} year={year} onToggle={onToggle}/>
+        <VizMonth stats={{ sortedDays: checkins }} accent={accent} todayISO={isoDay(TODAY)} year={year} levels={levels} onToggle={onToggle} onSetLevel={onSetLevel}/>
       </div>
       <button onClick={onClose} style={{ marginTop:'auto', padding:'16px 24px', background:'#29261b', color:'#f6f2ea', border:0, borderRadius:16, fontFamily:'Newsreader,serif', fontSize:18, fontWeight:500, cursor:'pointer', boxShadow:'0 12px 30px rgba(41,38,27,0.18)' }}>Fertig</button>
+    </div>
+  );
+}
+
+// Optionale Stufen-Rückfrage direkt nach dem Stempeln (Bottom-Sheet)
+function LevelPrompt({ accent, currentLevel='normal', onPick, onClose }) {
+  return (
+    <div onClick={onClose} style={{ position:'absolute', inset:0, zIndex:210, background:'rgba(41,38,27,0.28)', display:'flex', flexDirection:'column', justifyContent:'flex-end' }}>
+      <div onClick={(e)=>e.stopPropagation()} style={{ background:'#f6f2ea', borderTopLeftRadius:24, borderTopRightRadius:24, padding:'22px 22px calc(env(safe-area-inset-bottom) + 24px)', boxShadow:'0 -10px 40px rgba(41,38,27,0.22)' }}>
+        <div style={{ display:'flex', alignItems:'baseline', justifyContent:'space-between' }}>
+          <div style={{ fontFamily:'Newsreader,serif', fontSize:22, fontWeight:500, color:'#29261b', letterSpacing:'-0.01em' }}>Wie war heute?</div>
+          <button onClick={onClose} style={{ appearance:'none', border:0, background:'transparent', color:'rgba(41,38,27,0.5)', fontSize:13, fontFamily:'system-ui', cursor:'pointer' }}>überspringen</button>
+        </div>
+        <div style={{ fontFamily:'Newsreader,serif', fontStyle:'italic', fontSize:14, color:'rgba(41,38,27,0.58)', marginTop:3 }}>Optional · später jederzeit änderbar.</div>
+        <div style={{ display:'flex', gap:10, marginTop:18 }}>
+          {LEVEL_OPTS.map((o)=>{
+            const on=currentLevel===o.v;
+            return (
+              <button key={o.v} type="button" onClick={()=>onPick(o.v)}
+                style={{ flex:1, padding:'18px 0', borderRadius:18, border:on?`1.5px solid ${accent}`:'0.5px solid rgba(41,38,27,0.18)', background:'#fbf8f1', cursor:'pointer', display:'flex', flexDirection:'column', alignItems:'center', gap:10, boxShadow:'0 1px 0 rgba(255,255,255,0.6) inset' }}>
+                <span style={{ width:26, height:26, borderRadius:'50%', background:levelColor(accent,o.v), boxShadow:'0 1px 4px rgba(41,38,27,0.18)' }}/>
+                <span style={{ fontFamily:'system-ui', fontSize:14, fontWeight:500, color:'#29261b' }}>{o.label}</span>
+              </button>
+            );
+          })}
+        </div>
+      </div>
     </div>
   );
 }
@@ -946,11 +1019,12 @@ function loadAppData() {
   try {
     return {
       checkins: JSON.parse(localStorage.getItem(`sb-checkins-${YEAR}`) || '[]'),
+      levels: loadLevels(YEAR),
       goal: JSON.parse(localStorage.getItem('sb-goal') || '40'),
       accent: localStorage.getItem('sb-accent') || '#6b6862',
       onboarded: !!localStorage.getItem('sb-onboarded'),
     };
-  } catch { return { checkins:[], goal:40, accent:'#6b6862', onboarded:false }; }
+  } catch { return { checkins:[], levels:{}, goal:40, accent:'#6b6862', onboarded:false }; }
 }
 
 function App() {
@@ -963,13 +1037,14 @@ function App() {
   const [checkinActive, setCheckinActive]=React.useState(false);
   const [onboardingActive, setOnboardingActive]=React.useState(!loadAppData().onboarded);
   const [nachtragenOpen, setNachtragenOpen]=React.useState(false);
+  const [levelPromptISO, setLevelPromptISO]=React.useState(null);  // Tag, für den nach dem Stempeln die Stufe abgefragt wird
   const fileInputRef=React.useRef(null);
 
   // Remove loading indicator once React has mounted
   React.useEffect(() => { document.getElementById('loading')?.remove(); }, []);
 
-  // Check-ins neu laden, wenn das angezeigte Jahr wechselt
-  React.useEffect(()=>{ setAppData((d)=>({...d, checkins: loadCheckins(year)})); },[year]);
+  // Check-ins & Level neu laden, wenn das angezeigte Jahr wechselt
+  React.useEffect(()=>{ setAppData((d)=>({...d, checkins: loadCheckins(year), levels: loadLevels(year)})); },[year]);
 
   const todayISO=isoDay(TODAY);
 
@@ -977,6 +1052,7 @@ function App() {
     if (showDemo) return DEMO_CHECKINS;
     return appData.checkins;
   },[showDemo,appData.checkins]);
+  const activeLevels = showDemo ? {} : appData.levels;
 
   const stats=React.useMemo(()=>computeStats(activeCheckins),[activeCheckins]);
   const badges=React.useMemo(()=>earnedBadges(stats),[stats]);
@@ -989,7 +1065,17 @@ function App() {
       const next=[...new Set([...appData.checkins,todayISO])];
       localStorage.setItem(`sb-checkins-${YEAR}`,JSON.stringify(next));
       setAppData((d)=>({...d,checkins:next}));
+      setLevelPromptISO(todayISO);   // optionale Stufen-Rückfrage einblenden
     }
+  };
+
+  // Anstrengungs-Stufe eines Tages setzen (sparse: 'normal' = kein Eintrag)
+  const setDayLevel=(iso, level)=>{
+    const map={...loadLevels(year)};
+    if (level==='normal') delete map[iso]; else map[iso]=level;
+    if (Object.keys(map).length) localStorage.setItem(`sb-levels-${year}`,JSON.stringify(map));
+    else localStorage.removeItem(`sb-levels-${year}`);
+    setAppData((d)=>({...d,levels:map}));
   };
 
   const setGoal=(goal)=>{
@@ -1003,10 +1089,16 @@ function App() {
   // Einzelnen Tag im angezeigten Jahr nachtragen/löschen
   const toggleDay=(iso)=>{
     const cur=new Set(loadCheckins(year));
-    if (cur.has(iso)) cur.delete(iso); else cur.add(iso);
+    const removing=cur.has(iso);
+    if (removing) cur.delete(iso); else cur.add(iso);
     const next=[...cur].sort();
     localStorage.setItem(`sb-checkins-${year}`,JSON.stringify(next));
-    setAppData((d)=>({...d,checkins:next}));
+    // beim Entfernen auch die Stufe löschen
+    let map=loadLevels(year);
+    if (removing && map[iso]) { map={...map}; delete map[iso];
+      if (Object.keys(map).length) localStorage.setItem(`sb-levels-${year}`,JSON.stringify(map)); else localStorage.removeItem(`sb-levels-${year}`);
+    }
+    setAppData((d)=>({...d,checkins:next,levels:map}));
   };
 
   // Backup: alle sb-* Schlüssel als JSON-Datei herunterladen
@@ -1033,7 +1125,7 @@ function App() {
         Object.entries(d).forEach(([k,v])=>{ if (k.startsWith('sb-')){ localStorage.setItem(k, typeof v==='string'?v:JSON.stringify(v)); n++; } });
         if (!n) { alert('Keine Sammelbuch-Daten in der Datei gefunden.'); return; }
         const fresh=loadAppData();
-        setAppData({...fresh, checkins:loadCheckins(year)});
+        setAppData({...fresh, checkins:loadCheckins(year), levels:loadLevels(year)});
         setOnboardingActive(false);
         alert(`Backup geladen ✓ (${n} Einträge)`);
       } catch { alert('Konnte die Datei nicht lesen. Ist es ein Sammelbuch-Backup?'); }
@@ -1044,14 +1136,15 @@ function App() {
   const resetAll=()=>{
     if (!confirm(`Wirklich alle Daten für ${year} zurücksetzen? Mach vorher ein Backup.`)) return;
     localStorage.removeItem(`sb-checkins-${year}`);
+    localStorage.removeItem(`sb-levels-${year}`);
     if (year===YEAR) {
       localStorage.removeItem('sb-goal');
       localStorage.removeItem('sb-accent');
       localStorage.removeItem('sb-onboarded');
-      setAppData({checkins:[],goal:40,accent:'#6b6862',onboarded:false});
+      setAppData({checkins:[],levels:{},goal:40,accent:'#6b6862',onboarded:false});
       setOnboardingActive(true);
     } else {
-      setAppData((d)=>({...d,checkins:[]}));
+      setAppData((d)=>({...d,checkins:[],levels:{}}));
     }
   };
 
@@ -1063,14 +1156,15 @@ function App() {
         onChange={(e)=>{ const f=e.target.files&&e.target.files[0]; if (f) importData(f); e.target.value=''; }}/>
       <div style={{ position:'absolute', inset:0, background:'#f6f2ea', color:'#29261b', overflow:'hidden' }}>
         <div style={{ position:'absolute', inset:0, overflowY:'auto', overflowX:'hidden', WebkitOverflowScrolling:'touch' }}>
-          {tab==='sammeln'&&<SammelnScreen stats={stats} accent={appData.accent} viz={viz} setViz={setViz} goal={appData.goal} onCheckin={onCheckin} checkedInToday={checkedInToday} todayISO={todayISO} showDemo={showDemo} year={year} onToggleDay={toggleDay} onNachtragen={()=>setNachtragenOpen(true)}/>}
+          {tab==='sammeln'&&<SammelnScreen stats={stats} accent={appData.accent} viz={viz} setViz={setViz} goal={appData.goal} onCheckin={onCheckin} checkedInToday={checkedInToday} todayISO={todayISO} showDemo={showDemo} year={year} levels={activeLevels} onToggleDay={toggleDay} onSetLevel={setDayLevel} onNachtragen={()=>setNachtragenOpen(true)}/>}
           {tab==='erfolge'&&<ErfolgeScreen stats={stats} badges={badges}/>}
-          {tab==='jahr'&&<JahrScreen stats={stats} badges={badges} accent={appData.accent} year={year}/>}
+          {tab==='jahr'&&<JahrScreen stats={stats} badges={badges} accent={appData.accent} year={year} levels={activeLevels}/>}
         </div>
         <BottomNav tab={tab} setTab={setTab}/>
         {checkinActive&&<CheckinMoment motion={motion} total={stats.total+(checkedInToday?0:1)} todayDate={TODAY} accent={appData.accent} onDone={onCheckinDone}/>}
         {onboardingActive&&<Onboarding accent={appData.accent} onDone={(goal)=>{ setGoal(goal); localStorage.setItem('sb-onboarded','1'); setAppData((d)=>({...d,onboarded:true,goal})); setOnboardingActive(false); }}/>}
-        {nachtragenOpen&&<NachtragenDialog year={year} checkins={appData.checkins} accent={appData.accent} onToggle={toggleDay} onClose={()=>setNachtragenOpen(false)}/>}
+        {nachtragenOpen&&<NachtragenDialog year={year} checkins={appData.checkins} accent={appData.accent} levels={appData.levels} onToggle={toggleDay} onSetLevel={setDayLevel} onClose={()=>setNachtragenOpen(false)}/>}
+        {levelPromptISO&&<LevelPrompt accent={appData.accent} currentLevel={appData.levels[levelPromptISO]||'normal'} onPick={(lv)=>{ setDayLevel(levelPromptISO,lv); setLevelPromptISO(null); }} onClose={()=>setLevelPromptISO(null)}/>}
       </div>
 
       <TweaksPanel title="Tweaks">
