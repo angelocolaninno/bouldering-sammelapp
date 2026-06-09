@@ -60,6 +60,7 @@
 // ─────────────────────────────────────────────────────────────
 // DATA
 // ─────────────────────────────────────────────────────────────
+const APP_VERSION = 'v1.1';
 const YEAR = new Date().getFullYear();          // aktuelles Jahr — rollt automatisch weiter
 const TODAY = (() => { const d = new Date(); d.setHours(0,0,0,0); return d; })();
 
@@ -914,13 +915,16 @@ function BottomNav({ tab, setTab }) {
     { id:'jahr', label:'Jahr', icon:<svg width="22" height="22" viewBox="0 0 22 22" fill="none"><rect x="3.5" y="4.5" width="15" height="14" rx="2" stroke="currentColor" strokeWidth="1.4"/><path d="M3.5 9h15" stroke="currentColor" strokeWidth="1.4"/><path d="M7 3v3M15 3v3" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round"/></svg> },
   ];
   return (
-    <div style={{ position:'absolute', bottom:0, left:0, right:0, padding:'8px 10px calc(14px + env(safe-area-inset-bottom))', background:'rgba(246,242,234,0.85)', backdropFilter:'blur(20px) saturate(160%)', WebkitBackdropFilter:'blur(20px) saturate(160%)', borderTop:'0.5px solid rgba(41,38,27,0.12)', display:'flex', zIndex:5 }}>
+    <div style={{ position:'absolute', bottom:0, left:0, right:0, padding:'8px 10px calc(14px + env(safe-area-inset-bottom))', background:'rgba(246,242,234,0.85)', backdropFilter:'blur(20px) saturate(160%)', WebkitBackdropFilter:'blur(20px) saturate(160%)', borderTop:'0.5px solid rgba(41,38,27,0.12)', display:'flex', flexDirection:'column', alignItems:'center', zIndex:5 }}>
+      <div style={{ display:'flex', width:'100%' }}>
       {items.map((it)=>(
         <button key={it.id} onClick={()=>setTab(it.id)} style={{ flex:1, padding:'8px 0 4px', background:'transparent', border:0, display:'flex', flexDirection:'column', alignItems:'center', gap:3, cursor:'pointer', opacity:tab===it.id?1:0.42, transition:'opacity .2s' }}>
           <div style={{ color:'#29261b' }}>{it.icon}</div>
           <div style={{ fontFamily:'system-ui', fontSize:10, fontWeight:600, letterSpacing:'.04em', color:'#29261b', textTransform:'uppercase' }}>{it.label}</div>
         </button>
       ))}
+      </div>
+      <div style={{ fontFamily:'system-ui', fontSize:9, color:'rgba(41,38,27,0.28)', letterSpacing:'.06em', marginTop:2 }}>{APP_VERSION}</div>
     </div>
   );
 }
