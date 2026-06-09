@@ -60,9 +60,16 @@
 // ─────────────────────────────────────────────────────────────
 // DATA
 // ─────────────────────────────────────────────────────────────
-const APP_VERSION = 'v1.3';
+const APP_VERSION = 'v1.4';
 const YEAR = new Date().getFullYear();          // aktuelles Jahr — rollt automatisch weiter
 const TODAY = (() => { const d = new Date(); d.setHours(0,0,0,0); return d; })();
+
+function hasSeenHoroskopToday(todayISO) {
+  return localStorage.getItem('sb-horoskop-seen') === todayISO;
+}
+function markHoroskopSeen(todayISO) {
+  localStorage.setItem('sb-horoskop-seen', todayISO);
+}
 
 function toRoman(n) {
   const map=[[1000,'M'],[900,'CM'],[500,'D'],[400,'CD'],[100,'C'],[90,'XC'],[50,'L'],[40,'XL'],[10,'X'],[9,'IX'],[5,'V'],[4,'IV'],[1,'I']];
@@ -321,6 +328,45 @@ function HoroskopCard({ stats, todayISO }) {
     <div style={{ margin:'0 18px 4px', padding:'14px 16px', background:'rgba(41,38,27,0.035)', borderRadius:14, border:'0.5px solid rgba(41,38,27,0.1)', position:'relative' }}>
       <div style={{ fontSize:9, letterSpacing:'.14em', textTransform:'uppercase', color:'rgba(41,38,27,0.38)', fontFamily:'system-ui', fontWeight:600, marginBottom:6 }}>Tageshoroskop</div>
       <div style={{ fontFamily:'Newsreader,serif', fontStyle:'italic', fontSize:15, color:'rgba(41,38,27,0.82)', lineHeight:1.5 }}>{text}</div>
+    </div>
+  );
+}
+
+function HoroskopMoment({ stats, todayISO, onDone }) {
+  const [phase, setPhase] = React.useState('in');
+  const text = React.useMemo(() => generateHoroskop(stats, todayISO), []);
+  const today = parseISO(todayISO);
+  const weekdayDE = ['Sonntag','Montag','Dienstag','Mittwoch','Donnerstag','Freitag','Samstag'][today.getDay()];
+
+  React.useEffect(() => {
+    const t1 = setTimeout(() => setPhase('settle'), 120);
+    return () => clearTimeout(t1);
+  }, []);
+
+  const dismiss = React.useCallback(() => {
+    setPhase('out');
+    markHoroskopSeen(todayISO);
+    setTimeout(onDone, 420);
+  }, [onDone, todayISO]);
+
+  // Tap anywhere oder nach 12 s auto-schliessen
+  React.useEffect(() => {
+    const t = setTimeout(dismiss, 12000);
+    return () => clearTimeout(t);
+  }, [dismiss]);
+
+  return (
+    <div onClick={dismiss} style={{ position:'absolute', inset:0, zIndex:190, background:'rgba(246,242,234,0.98)', backdropFilter:'blur(14px)', WebkitBackdropFilter:'blur(14px)', display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', padding:'0 32px', opacity:phase==='out'?0:1, transform:phase==='in'?'translateY(18px)':'translateY(0)', transition:'opacity .4s,transform .4s cubic-bezier(.3,.7,.4,1)', cursor:'pointer', overflow:'hidden' }}>
+      {/* Dekorativer Stern */}
+      <svg width="48" height="48" viewBox="0 0 48 48" style={{ opacity:phase==='in'?0:0.22, transition:'opacity .5s .15s', marginBottom:28 }}>
+        <path d="M24 4 L26 22 L44 24 L26 26 L24 44 L22 26 L4 24 L22 22 Z" fill="#29261b"/>
+        <path d="M24 10 L25 22 L37 24 L25 26 L24 38 L23 26 L11 24 L23 22 Z" fill="#29261b" opacity="0.35" transform="rotate(45 24 24)"/>
+      </svg>
+      <div style={{ fontFamily:'system-ui', fontSize:10, letterSpacing:'.18em', textTransform:'uppercase', color:'rgba(41,38,27,0.4)', opacity:phase==='in'?0:1, transition:'opacity .4s .1s', marginBottom:16 }}>Tageshoroskop · {weekdayDE}</div>
+      <div style={{ fontFamily:'Newsreader,serif', fontStyle:'italic', fontSize:24, color:'#29261b', lineHeight:1.55, textAlign:'center', maxWidth:320, opacity:phase==='in'?0:1, transform:phase==='in'?'translateY(10px)':'translateY(0)', transition:'opacity .5s .18s,transform .5s .18s' }}>
+        «{text}»
+      </div>
+      <div style={{ marginTop:40, fontFamily:'system-ui', fontSize:11, color:'rgba(41,38,27,0.32)', opacity:phase==='settle'?1:0, transition:'opacity .5s 1.5s' }}>Tippen zum Schließen</div>
     </div>
   );
 }
@@ -1263,6 +1309,14 @@ function App() {
   const [nachtragenOpen, setNachtragenOpen]=React.useState(false);
   const [levelPromptISO, setLevelPromptISO]=React.useState(null);
   const [newlyEarnedBadges, setNewlyEarnedBadges]=React.useState([]);
+  const [horoskopVisible, setHoroskopVisible]=React.useState(false);
+  // Einmal pro Tag beim App-Öffnen anzeigen, falls Daten vorhanden
+  React.useEffect(()=>{
+    if (!loadAppData().onboarded) return;
+    if (hasSeenHoroskopToday(isoDay(TODAY))) return;
+    const t=setTimeout(()=>setHoroskopVisible(true), 900);
+    return ()=>clearTimeout(t);
+  },[]);
   const fileInputRef=React.useRef(null);
 
   // Remove loading indicator once React has mounted
@@ -1292,15 +1346,23 @@ function App() {
       const justEarned=earnedBadges(computeStats(next)).filter((b)=>b.earned&&!prevEarned.has(b.id));
       localStorage.setItem(`sb-checkins-${YEAR}`,JSON.stringify(next));
       setAppData((d)=>({...d,checkins:next}));
+      // Horoskop nach Check-in zeigen wenn heute noch nicht gesehen
+      if (!hasSeenHoroskopToday(todayISO)) setHoroskopVisible(true);
       if (justEarned.length>0) setNewlyEarnedBadges(justEarned);
-      else setLevelPromptISO(todayISO);
+      else if (hasSeenHoroskopToday(todayISO)) setLevelPromptISO(todayISO);
     }
   };
 
   const onBadgeUnlockDone=()=>{
     const rest=newlyEarnedBadges.slice(1);
     setNewlyEarnedBadges(rest);
-    if (rest.length===0) setLevelPromptISO(todayISO);
+    if (rest.length===0 && hasSeenHoroskopToday(todayISO)) setLevelPromptISO(todayISO);
+  };
+
+  const onHoroskopDone=()=>{
+    setHoroskopVisible(false);
+    // Nach Horoskop: LevelPrompt falls Check-in heute war und noch nicht gezeigt
+    if (checkedInToday && newlyEarnedBadges.length===0) setLevelPromptISO(todayISO);
   };
 
   // Anstrengungs-Stufe eines Tages setzen (sparse: 'normal' = kein Eintrag)
@@ -1396,6 +1458,7 @@ function App() {
         </div>
         <BottomNav tab={tab} setTab={setTab}/>
         {checkinActive&&<CheckinMoment motion={motion} total={stats.total+(checkedInToday?0:1)} todayDate={TODAY} accent={appData.accent} onDone={onCheckinDone}/>}
+        {horoskopVisible&&<HoroskopMoment stats={stats} todayISO={todayISO} onDone={onHoroskopDone}/>}
         {newlyEarnedBadges.length>0&&<BadgeUnlockMoment badge={newlyEarnedBadges[0]} onDone={onBadgeUnlockDone}/>}
         {onboardingActive&&<Onboarding accent={appData.accent} onDone={(goal)=>{ setGoal(goal); localStorage.setItem('sb-onboarded','1'); setAppData((d)=>({...d,onboarded:true,goal})); setOnboardingActive(false); }}/>}
         {nachtragenOpen&&<NachtragenDialog year={year} checkins={appData.checkins} accent={appData.accent} levels={appData.levels} onToggle={toggleDay} onSetLevel={setDayLevel} onClose={()=>setNachtragenOpen(false)}/>}
