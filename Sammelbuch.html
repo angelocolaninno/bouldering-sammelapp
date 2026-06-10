@@ -60,7 +60,7 @@
 // ─────────────────────────────────────────────────────────────
 // DATA
 // ─────────────────────────────────────────────────────────────
-const APP_VERSION = 'v1.4';
+const APP_VERSION = 'v1.5';
 const YEAR = new Date().getFullYear();          // aktuelles Jahr — rollt automatisch weiter
 const TODAY = (() => { const d = new Date(); d.setHours(0,0,0,0); return d; })();
 
@@ -97,6 +97,22 @@ function levelColor(accent, level){
   return accent; // normal
 }
 const LEVEL_OPTS=[{v:'leicht',label:'Leicht'},{v:'normal',label:'Normal'},{v:'stark',label:'Stark'}];
+
+// ── Grade-System (Gym-spezifisch, tap-to-cycle 0→1→2→3→0) ──
+const GRADES=[
+  {id:'y',  label:'bis 4c',    short:'4c',   color:'#f0cc30', textColor:'#29261b'},
+  {id:'g',  label:'5a – 6a',   short:'6a',   color:'#3a9a3a', textColor:'#fff'},
+  {id:'o',  label:'6a+ – 6b+', short:'6b+',  color:'#e07018', textColor:'#fff'},
+  {id:'b',  label:'6c – 7a',   short:'7a',   color:'#2a4eaa', textColor:'#fff'},
+  {id:'r',  label:'7a+ – 7b+', short:'7b+',  color:'#7a1818', textColor:'#fff'},
+  {id:'w',  label:'7c – 8a',   short:'8a',   color:'#ddd8c8', textColor:'#29261b'},
+  {id:'bl', label:'ab 8a+',    short:'8a+',  color:'#1a1a1a', textColor:'#fff'},
+  {id:'p',  label:'Guess the Grade', short:'GTG', color:'#d91a7a', textColor:'#fff'},
+];
+const GRADE_COUNT_LABELS=['','wenig','einige','viele'];
+function loadRoutes(year){
+  try{ return JSON.parse(localStorage.getItem(`sb-routes-${year}`)||'{}'); }catch{ return {}; }
+}
 
 // ── Teilbare Jahres-Karte als PNG auf ein Canvas zeichnen (kein externes Lib) ──
 function roundRectPath(ctx,x,y,w,h,r){ ctx.beginPath(); ctx.moveTo(x+r,y); ctx.arcTo(x+w,y,x+w,y+h,r); ctx.arcTo(x+w,y+h,x,y+h,r); ctx.arcTo(x,y+h,x,y,r); ctx.arcTo(x,y,x+w,y,r); ctx.closePath(); }
@@ -707,14 +723,31 @@ function VizHeatmap({ stats, accent, todayISO, year=YEAR, levels={} }) {
   );
 }
 
-function VizMonth({ stats, accent, todayISO, year=YEAR, levels={}, onToggle, onSetLevel }) {
+function GradeDots({ counts={} }) {
+  const dots=[];
+  GRADES.forEach((g)=>{
+    const cnt=counts[g.id]||0;
+    for(let i=0;i<cnt;i++) dots.push({color:g.color,id:`${g.id}-${i}`,isW:g.id==='w'});
+  });
+  if (!dots.length) return null;
+  return (
+    <div style={{ display:'flex', flexWrap:'wrap', gap:2, justifyContent:'center', marginTop:2, maxWidth:'100%' }}>
+      {dots.slice(0,6).map((d)=>(
+        <div key={d.id} style={{ width:5, height:5, borderRadius:'50%', background:d.color, border:d.isW?'0.5px solid rgba(41,38,27,0.3)':'none', flexShrink:0 }}/>
+      ))}
+      {dots.length>6&&<div style={{ fontSize:7, color:'rgba(41,38,27,0.4)', lineHeight:'5px' }}>+</div>}
+    </div>
+  );
+}
+
+function VizMonth({ stats, accent, todayISO, year=YEAR, levels={}, routes={}, onToggle, onSetLevel, onSetRoutes }) {
   const set=new Set(stats.sortedDays);
   const monthNames=['Januar','Februar','März','April','Mai','Juni','Juli','August','September','Oktober','November','Dezember'];
   const [m,setM]=React.useState(()=> year===YEAR ? new Date().getMonth() : 0);
-  const [sel,setSel]=React.useState(null);   // ausgewählter Tag für die Stufen-Bearbeitung
+  const [sel,setSel]=React.useState(null);
   React.useEffect(()=>{ setM(year===YEAR ? new Date().getMonth() : 0); setSel(null); },[year]);
   const dim=new Date(year,m+1,0).getDate();
-  const startDow=(new Date(year,m,1).getDay()+6)%7; // Montag = 0
+  const startDow=(new Date(year,m,1).getDay()+6)%7;
   const prefix=`${year}-${String(m+1).padStart(2,'0')}`;
   const monthCount=[...set].filter((d)=>d.startsWith(prefix)).length;
   const cells=[]; for (let i=0;i<startDow;i++) cells.push(null); for (let d=1;d<=dim;d++) cells.push(d);
@@ -723,9 +756,9 @@ function VizMonth({ stats, accent, todayISO, year=YEAR, levels={}, onToggle, onS
   const goMonth=(nm)=>{ setM(nm); setSel(null); };
   const onCell=(iso,hit)=>{
     if (!editable) return;
-    if (!hit) { onToggle(iso); setSel(iso); }        // leer → hinzufügen (normal) + auswählen
-    else if (sel===iso) { onToggle(iso); setSel(null); }  // ausgewählten Tag erneut antippen → wieder entfernen
-    else setSel(iso);                                // anderen belegten Tag → auswählen (Stufe ändern / Entfernen)
+    if (!hit) { onToggle(iso); setSel(iso); }
+    else if (sel===iso) { onToggle(iso); setSel(null); }
+    else setSel(iso);
   };
   return (
     <div style={{ padding:'8px 18px 4px', fontFamily:'system-ui,-apple-system,sans-serif' }}>
@@ -746,6 +779,7 @@ function VizMonth({ stats, accent, todayISO, year=YEAR, levels={}, onToggle, onS
           const iso=`${prefix}-${String(d).padStart(2,'0')}`;
           const hit=set.has(iso), isToday=iso===todayISO, future=iso>todayISO, isSel=sel===iso;
           const fill=hit?levelColor(accent, levels[iso]||'normal'):'transparent';
+          const dayRoutes=routes[iso];
           const circle=(
             <div style={{ width:'82%', aspectRatio:'1', borderRadius:'50%', display:'flex', alignItems:'center', justifyContent:'center',
               background:fill, border:isToday&&!hit?`1.2px dashed ${accent}`:'none',
@@ -753,13 +787,19 @@ function VizMonth({ stats, accent, todayISO, year=YEAR, levels={}, onToggle, onS
               color:hit?'#f6f0e1':(future?'rgba(41,38,27,0.28)':'rgba(41,38,27,0.7)'),
               boxShadow:isSel?`0 0 0 2px ${accent}`:(hit?'0 1px 4px rgba(41,38,27,0.18)':'none'), transition:'background .25s,color .25s,box-shadow .15s' }}>{d}</div>
           );
+          const cellInner=(
+            <div style={{ display:'flex', flexDirection:'column', alignItems:'center', width:'100%' }}>
+              {circle}
+              {hit&&dayRoutes&&<GradeDots counts={dayRoutes}/>}
+            </div>
+          );
           if (editable && !future) {
             return (
               <button key={i} type="button" onClick={()=>onCell(iso,hit)}
-                style={{ aspectRatio:'1', display:'flex', alignItems:'center', justifyContent:'center', border:0, background:'transparent', padding:0, cursor:'pointer', WebkitTapHighlightColor:'transparent' }}>{circle}</button>
+                style={{ display:'flex', alignItems:'flex-start', justifyContent:'center', paddingTop:2, paddingBottom:4, border:0, background:'transparent', padding:0, cursor:'pointer', WebkitTapHighlightColor:'transparent', minHeight:38 }}>{cellInner}</button>
             );
           }
-          return <div key={i} style={{ aspectRatio:'1', display:'flex', alignItems:'center', justifyContent:'center' }}>{circle}</div>;
+          return <div key={i} style={{ display:'flex', alignItems:'flex-start', justifyContent:'center', paddingTop:2, paddingBottom:4, minHeight:38 }}>{cellInner}</div>;
         })}
       </div>
       {editable && onSetLevel && sel && (
@@ -781,6 +821,32 @@ function VizMonth({ stats, accent, todayISO, year=YEAR, levels={}, onToggle, onS
               );
             })}
           </div>
+          {onSetRoutes&&(
+            <div style={{ marginTop:12 }}>
+              <div style={{ fontSize:11, letterSpacing:'.08em', textTransform:'uppercase', color:'rgba(41,38,27,0.45)', fontWeight:600, marginBottom:8 }}>Levels</div>
+              <div style={{ display:'flex', flexWrap:'wrap', gap:6 }}>
+                {GRADES.map((g)=>{
+                  const cnt=(routes[sel]||{})[g.id]||0;
+                  return (
+                    <button key={g.id} type="button" onClick={()=>{
+                      const cur=routes[sel]||{};
+                      const next=((cur[g.id]||0)+1)%4;
+                      const updated=next===0?Object.fromEntries(Object.entries(cur).filter(([k])=>k!==g.id)):{...cur,[g.id]:next};
+                      onSetRoutes(sel,updated);
+                    }} style={{ display:'flex', alignItems:'center', gap:5, padding:'6px 10px', borderRadius:999,
+                      border:cnt>0?`1px solid ${g.color}`:'0.5px solid rgba(41,38,27,0.18)',
+                      background:cnt>0?g.color+'22':'transparent', cursor:'pointer', WebkitTapHighlightColor:'transparent' }}>
+                      <div style={{ width:10, height:10, borderRadius:'50%', background:g.color, border:g.id==='w'?'0.5px solid rgba(41,38,27,0.3)':'none' }}/>
+                      <span style={{ fontSize:11, fontWeight:600, color:'#29261b' }}>{g.short}</span>
+                      {cnt>0&&<div style={{ display:'flex', gap:2 }}>
+                        {[1,2,3].map((i)=><div key={i} style={{ width:5, height:5, borderRadius:'50%', background:cnt>=i?g.color:'rgba(41,38,27,0.15)', border:cnt>=i&&g.id==='w'?'0.5px solid rgba(41,38,27,0.3)':'none' }}/>)}
+                      </div>}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
         </div>
       )}
     </div>
@@ -812,7 +878,7 @@ function VizSegment({ value, onChange }) {
   );
 }
 
-function SammelnScreen({ stats, accent, viz, setViz, goal, onCheckin, checkedInToday, todayISO, showDemo, year=YEAR, levels={}, onToggleDay, onSetLevel, onNachtragen }) {
+function SammelnScreen({ stats, accent, viz, setViz, goal, onCheckin, checkedInToday, todayISO, showDemo, year=YEAR, levels={}, routes={}, onToggleDay, onSetLevel, onNachtragen }) {
   const remaining=Math.max(0,goal-stats.total);
   const goalPct=Math.min(100,Math.round((stats.total/goal)*100));
   const viewingPast=year!==YEAR;
@@ -851,7 +917,7 @@ function SammelnScreen({ stats, accent, viz, setViz, goal, onCheckin, checkedInT
       </div>
       <div style={{ minHeight:220 }}>
         {viz==='heat'&&<VizHeatmap stats={stats} accent={accent} todayISO={todayISO} year={year} levels={levels}/>}
-        {viz==='month'&&<VizMonth stats={stats} accent={accent} todayISO={todayISO} year={year} levels={levels}/>}{/* nur Anzeige — Bearbeiten über „Vergangenen Tag nachtragen" */}
+        {viz==='month'&&<VizMonth stats={stats} accent={accent} todayISO={todayISO} year={year} levels={levels} routes={routes}/>}{/* nur Anzeige — Bearbeiten über „Vergangenen Tag nachtragen" */}
       </div>
       <div style={{ padding:'24px 20px 0' }}>
         <button onClick={onCheckin} disabled={btnDisabled} style={{ width:'100%', padding:'20px 24px', background:btnDisabled?'rgba(41,38,27,0.06)':'#29261b', color:btnDisabled?'rgba(41,38,27,0.55)':'#f6f2ea', border:0, borderRadius:18, fontFamily:'Newsreader,serif', fontSize:21, fontWeight:500, letterSpacing:'-0.005em', display:'flex', alignItems:'center', justifyContent:'space-between', boxShadow:btnDisabled?'none':'0 2px 0 rgba(0,0,0,0.04),0 12px 30px rgba(41,38,27,0.18)', cursor:btnDisabled?'default':'pointer', transition:'all .2s' }}>
@@ -1199,7 +1265,7 @@ function BadgeUnlockMoment({ badge, onDone }) {
 const ACCENT_OPTIONS = ['#6b6862','#6b7a4b','#b3543a','#4a5a6a'];
 
 // Vollbild-Dialog zum Nachtragen vergangener Tage (nutzt die editierbare Monatsansicht)
-function NachtragenDialog({ year, checkins, accent, levels={}, onToggle, onSetLevel, onClose }) {
+function NachtragenDialog({ year, checkins, accent, levels={}, routes={}, onToggle, onSetLevel, onSetRoutes, onClose }) {
   return (
     <div style={{ position:'absolute', inset:0, zIndex:150, background:'rgba(246,242,234,0.98)', backdropFilter:'blur(10px)', WebkitBackdropFilter:'blur(10px)', display:'flex', flexDirection:'column', padding:'calc(env(safe-area-inset-top) + 28px) 22px calc(env(safe-area-inset-bottom) + 24px)', overflowY:'auto' }}>
       <div style={{ display:'flex', alignItems:'flex-start', justifyContent:'space-between', gap:12 }}>
@@ -1213,7 +1279,7 @@ function NachtragenDialog({ year, checkins, accent, levels={}, onToggle, onSetLe
         Tippe einen Tag an — er wird gestempelt. Nochmal tippen entfernt ihn wieder.
       </div>
       <div style={{ marginTop:8 }}>
-        <VizMonth stats={{ sortedDays: checkins }} accent={accent} todayISO={isoDay(TODAY)} year={year} levels={levels} onToggle={onToggle} onSetLevel={onSetLevel}/>
+        <VizMonth stats={{ sortedDays: checkins }} accent={accent} todayISO={isoDay(TODAY)} year={year} levels={levels} routes={routes} onToggle={onToggle} onSetLevel={onSetLevel} onSetRoutes={onSetRoutes}/>
       </div>
       <button onClick={onClose} style={{ marginTop:'auto', padding:'16px 24px', background:'#29261b', color:'#f6f2ea', border:0, borderRadius:16, fontFamily:'Newsreader,serif', fontSize:18, fontWeight:500, cursor:'pointer', boxShadow:'0 12px 30px rgba(41,38,27,0.18)' }}>Fertig</button>
     </div>
@@ -1242,6 +1308,51 @@ function LevelPrompt({ accent, currentLevel='normal', onPick, onClose }) {
             );
           })}
         </div>
+      </div>
+    </div>
+  );
+}
+
+// Grade-Auswahl Bottom-Sheet (nach dem Stempeln oder im Nachtragen-Dialog)
+function GradePrompt({ initial={}, onSave, onClose }) {
+  const [counts, setCounts] = React.useState(initial);
+  const toggle = (id) => setCounts((c) => {
+    const next = ((c[id]||0) + 1) % 4;
+    if (next===0) { const {[id]:_, ...rest}=c; return rest; }
+    return {...c, [id]:next};
+  });
+  return (
+    <div onClick={onClose} style={{ position:'absolute', inset:0, zIndex:215, background:'rgba(41,38,27,0.32)', display:'flex', flexDirection:'column', justifyContent:'flex-end' }}>
+      <div onClick={(e)=>e.stopPropagation()} style={{ background:'#f6f2ea', borderTopLeftRadius:24, borderTopRightRadius:24, padding:'22px 20px calc(env(safe-area-inset-bottom) + 24px)', boxShadow:'0 -10px 40px rgba(41,38,27,0.22)', maxHeight:'90vh', overflowY:'auto' }}>
+        <div style={{ display:'flex', alignItems:'baseline', justifyContent:'space-between', marginBottom:4 }}>
+          <div style={{ fontFamily:'Newsreader,serif', fontSize:22, fontWeight:500, color:'#29261b' }}>Welche Levels heute?</div>
+          <button onClick={onClose} style={{ appearance:'none', border:0, background:'transparent', color:'rgba(41,38,27,0.5)', fontSize:13, fontFamily:'system-ui', cursor:'pointer' }}>überspringen</button>
+        </div>
+        <div style={{ fontFamily:'Newsreader,serif', fontStyle:'italic', fontSize:13, color:'rgba(41,38,27,0.52)', marginBottom:18 }}>1× = wenig · 2× = einige · 3× = viele · 4× = zurück</div>
+        <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:8 }}>
+          {GRADES.map((g)=>{
+            const cnt=counts[g.id]||0, active=cnt>0;
+            return (
+              <button key={g.id} type="button" onClick={()=>toggle(g.id)}
+                style={{ display:'flex', alignItems:'center', gap:10, padding:'11px 13px', borderRadius:14,
+                  border:active?`1.5px solid ${g.color}`:'0.5px solid rgba(41,38,27,0.14)',
+                  background:active?g.color+'1a':'rgba(41,38,27,0.03)', cursor:'pointer', transition:'all .15s',
+                  WebkitTapHighlightColor:'transparent' }}>
+                <div style={{ width:22, height:22, borderRadius:'50%', background:g.color, flexShrink:0, border:g.id==='w'?'1px solid rgba(41,38,27,0.25)':'none', boxShadow:'0 1px 3px rgba(41,38,27,0.18)' }}/>
+                <div style={{ flex:1, minWidth:0, textAlign:'left' }}>
+                  <div style={{ fontFamily:'system-ui', fontSize:11, fontWeight:600, color:'#29261b', lineHeight:1.2 }}>{g.label}</div>
+                  {active&&<div style={{ fontSize:10, color:'rgba(41,38,27,0.5)', marginTop:1 }}>{GRADE_COUNT_LABELS[cnt]}</div>}
+                </div>
+                <div style={{ display:'flex', gap:3, flexShrink:0 }}>
+                  {[1,2,3].map((i)=>(
+                    <div key={i} style={{ width:7, height:7, borderRadius:'50%', background:cnt>=i?g.color:'rgba(41,38,27,0.12)', border:cnt>=i&&g.id==='w'?'1px solid rgba(41,38,27,0.3)':'none', transition:'background .12s' }}/>
+                  ))}
+                </div>
+              </button>
+            );
+          })}
+        </div>
+        <button onClick={()=>onSave(counts)} style={{ marginTop:18, width:'100%', padding:'16px 24px', background:'#29261b', color:'#f6f2ea', border:0, borderRadius:16, fontFamily:'Newsreader,serif', fontSize:18, fontWeight:500, cursor:'pointer', boxShadow:'0 8px 24px rgba(41,38,27,0.18)' }}>Speichern</button>
       </div>
     </div>
   );
@@ -1290,11 +1401,12 @@ function loadAppData() {
     return {
       checkins: JSON.parse(localStorage.getItem(`sb-checkins-${YEAR}`) || '[]'),
       levels: loadLevels(YEAR),
+      routes: loadRoutes(YEAR),
       goal: JSON.parse(localStorage.getItem('sb-goal') || '40'),
       accent: localStorage.getItem('sb-accent') || '#6b6862',
       onboarded: !!localStorage.getItem('sb-onboarded'),
     };
-  } catch { return { checkins:[], levels:{}, goal:40, accent:'#6b6862', onboarded:false }; }
+  } catch { return { checkins:[], levels:{}, routes:{}, goal:40, accent:'#6b6862', onboarded:false }; }
 }
 
 function App() {
@@ -1309,6 +1421,7 @@ function App() {
   const [nachtragenOpen, setNachtragenOpen]=React.useState(false);
   const [levelPromptISO, setLevelPromptISO]=React.useState(null);
   const [newlyEarnedBadges, setNewlyEarnedBadges]=React.useState([]);
+  const [gradePromptISO, setGradePromptISO]=React.useState(null);
   const [horoskopVisible, setHoroskopVisible]=React.useState(false);
   // Einmal pro Tag beim App-Öffnen anzeigen, falls Daten vorhanden
   React.useEffect(()=>{
@@ -1323,7 +1436,7 @@ function App() {
   React.useEffect(() => { document.getElementById('loading')?.remove(); }, []);
 
   // Check-ins & Level neu laden, wenn das angezeigte Jahr wechselt
-  React.useEffect(()=>{ setAppData((d)=>({...d, checkins: loadCheckins(year), levels: loadLevels(year)})); },[year]);
+  React.useEffect(()=>{ setAppData((d)=>({...d, checkins: loadCheckins(year), levels: loadLevels(year), routes: loadRoutes(year)})); },[year]);
 
   const todayISO=isoDay(TODAY);
 
@@ -1372,6 +1485,14 @@ function App() {
     if (Object.keys(map).length) localStorage.setItem(`sb-levels-${year}`,JSON.stringify(map));
     else localStorage.removeItem(`sb-levels-${year}`);
     setAppData((d)=>({...d,levels:map}));
+  };
+
+  const setDayRoutes=(iso, counts)=>{
+    const map={...loadRoutes(year)};
+    if (counts&&Object.keys(counts).length) map[iso]=counts; else delete map[iso];
+    if (Object.keys(map).length) localStorage.setItem(`sb-routes-${year}`,JSON.stringify(map));
+    else localStorage.removeItem(`sb-routes-${year}`);
+    setAppData((d)=>({...d,routes:map}));
   };
 
   const setGoal=(goal)=>{
@@ -1452,7 +1573,7 @@ function App() {
         onChange={(e)=>{ const f=e.target.files&&e.target.files[0]; if (f) importData(f); e.target.value=''; }}/>
       <div style={{ position:'absolute', inset:0, background:'#f6f2ea', color:'#29261b', overflow:'hidden' }}>
         <div style={{ position:'absolute', inset:0, overflowY:'auto', overflowX:'hidden', WebkitOverflowScrolling:'touch' }}>
-          {tab==='sammeln'&&<SammelnScreen stats={stats} accent={appData.accent} viz={viz} setViz={setViz} goal={appData.goal} onCheckin={onCheckin} checkedInToday={checkedInToday} todayISO={todayISO} showDemo={showDemo} year={year} levels={activeLevels} onToggleDay={toggleDay} onSetLevel={setDayLevel} onNachtragen={()=>setNachtragenOpen(true)}/>}
+          {tab==='sammeln'&&<SammelnScreen stats={stats} accent={appData.accent} viz={viz} setViz={setViz} goal={appData.goal} onCheckin={onCheckin} checkedInToday={checkedInToday} todayISO={todayISO} showDemo={showDemo} year={year} levels={activeLevels} routes={showDemo?{}:appData.routes} onToggleDay={toggleDay} onSetLevel={setDayLevel} onNachtragen={()=>setNachtragenOpen(true)}/>}
           {tab==='erfolge'&&<ErfolgeScreen stats={stats} badges={badges}/>}
           {tab==='jahr'&&<JahrScreen stats={stats} badges={badges} accent={appData.accent} year={year} levels={activeLevels}/>}
         </div>
@@ -1461,8 +1582,9 @@ function App() {
         {horoskopVisible&&<HoroskopMoment stats={stats} todayISO={todayISO} onDone={onHoroskopDone}/>}
         {newlyEarnedBadges.length>0&&<BadgeUnlockMoment badge={newlyEarnedBadges[0]} onDone={onBadgeUnlockDone}/>}
         {onboardingActive&&<Onboarding accent={appData.accent} onDone={(goal)=>{ setGoal(goal); localStorage.setItem('sb-onboarded','1'); setAppData((d)=>({...d,onboarded:true,goal})); setOnboardingActive(false); }}/>}
-        {nachtragenOpen&&<NachtragenDialog year={year} checkins={appData.checkins} accent={appData.accent} levels={appData.levels} onToggle={toggleDay} onSetLevel={setDayLevel} onClose={()=>setNachtragenOpen(false)}/>}
-        {levelPromptISO&&<LevelPrompt accent={appData.accent} currentLevel={appData.levels[levelPromptISO]||'normal'} onPick={(lv)=>{ setDayLevel(levelPromptISO,lv); setLevelPromptISO(null); }} onClose={()=>setLevelPromptISO(null)}/>}
+        {nachtragenOpen&&<NachtragenDialog year={year} checkins={appData.checkins} accent={appData.accent} levels={appData.levels} routes={appData.routes} onToggle={toggleDay} onSetLevel={setDayLevel} onSetRoutes={setDayRoutes} onClose={()=>setNachtragenOpen(false)}/>}
+        {levelPromptISO&&<LevelPrompt accent={appData.accent} currentLevel={appData.levels[levelPromptISO]||'normal'} onPick={(lv)=>{ setDayLevel(levelPromptISO,lv); setLevelPromptISO(null); setGradePromptISO(todayISO); }} onClose={()=>{ setLevelPromptISO(null); setGradePromptISO(todayISO); }}/>}
+        {gradePromptISO&&<GradePrompt initial={appData.routes[gradePromptISO]||{}} onSave={(counts)=>{ setDayRoutes(gradePromptISO,counts); setGradePromptISO(null); }} onClose={()=>setGradePromptISO(null)}/>}
       </div>
 
       <TweaksPanel title="Tweaks">
