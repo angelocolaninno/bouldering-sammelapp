@@ -60,7 +60,7 @@
 // ─────────────────────────────────────────────────────────────
 // DATA
 // ─────────────────────────────────────────────────────────────
-const APP_VERSION = 'v1.5';
+const APP_VERSION = 'v1.6';
 const YEAR = new Date().getFullYear();          // aktuelles Jahr — rollt automatisch weiter
 const TODAY = (() => { const d = new Date(); d.setHours(0,0,0,0); return d; })();
 
@@ -69,6 +69,41 @@ function hasSeenHoroskopToday(todayISO) {
 }
 function markHoroskopSeen(todayISO) {
   localStorage.setItem('sb-horoskop-seen', todayISO);
+}
+
+// ── Buddy-Streak ──────────────────────────────────────────────
+function weekKey(d) {
+  return `${d.getFullYear()}-W${String(isoWeek(d)).padStart(2,'0')}`;
+}
+function loadBuddyWeeks() {
+  try { return new Set(JSON.parse(localStorage.getItem('sb-buddy-weeks')||'[]')); } catch { return new Set(); }
+}
+function saveBuddyWeeks(set) {
+  localStorage.setItem('sb-buddy-weeks', JSON.stringify([...set]));
+}
+function loadBuddyName() {
+  return localStorage.getItem('sb-buddy-name') || 'Kollegin';
+}
+function computeBuddyStreak(checkins, buddyWeeks) {
+  const myWeeks = new Set(checkins.map((iso) => weekKey(parseISO(iso))));
+  const thisWeek = weekKey(TODAY);
+  const bothWeeks = new Set([...myWeeks].filter((w) => buddyWeeks.has(w)));
+  // Streak: aufeinanderfolgende Wochen (exkl. aktuelle Woche, die noch offen sein kann)
+  let streak = 0;
+  const check = new Date(TODAY);
+  check.setDate(check.getDate() - 7); // letzte abgeschlossene Woche
+  for (let i = 0; i < 104; i++) {
+    if (bothWeeks.has(weekKey(check))) { streak++; check.setDate(check.getDate() - 7); }
+    else break;
+  }
+  // Aktuelle Woche zählt zusätzlich wenn beide schon gestempelt haben
+  if (myWeeks.has(thisWeek) && buddyWeeks.has(thisWeek)) streak++;
+  return {
+    streak,
+    myThisWeek: myWeeks.has(thisWeek),
+    buddyThisWeek: buddyWeeks.has(thisWeek),
+    thisWeek,
+  };
 }
 
 function toRoman(n) {
@@ -383,6 +418,58 @@ function HoroskopMoment({ stats, todayISO, onDone }) {
         «{text}»
       </div>
       <div style={{ marginTop:40, fontFamily:'system-ui', fontSize:11, color:'rgba(41,38,27,0.32)', opacity:phase==='settle'?1:0, transition:'opacity .5s 1.5s' }}>Tippen zum Schließen</div>
+    </div>
+  );
+}
+
+function BuddyStreakCard({ checkins, buddyWeeks, buddyName, onConfirm, onRevoke }) {
+  const { streak, myThisWeek, buddyThisWeek, thisWeek } = computeBuddyStreak(checkins, buddyWeeks);
+  const active = streak > 0 || (myThisWeek && buddyThisWeek);
+  // Flamme: lebendig wenn aktive Streak, verblasst wenn nicht
+  const FlameIcon = () => (
+    <svg width="28" height="34" viewBox="0 0 28 34" fill="none" style={{ filter: active ? 'none' : 'grayscale(1)', opacity: active ? 1 : 0.32, transition: 'all .4s' }}>
+      <path d="M14 2 C14 2 20 8 20 14 C20 18 18 20 16 21 C17 18 15 16 14 14 C13 16 11 18 12 21 C10 20 8 18 8 14 C8 8 14 2 14 2Z" fill={active ? '#e07018' : '#888'} opacity="0.9"/>
+      <path d="M14 10 C14 10 18 14 18 18 C18 21 16.5 23 14 24 C11.5 23 10 21 10 18 C10 14 14 10 14 10Z" fill={active ? '#f0cc30' : '#aaa'} opacity="0.85"/>
+      <path d="M14 16 C14 16 16 18.5 16 20.5 C16 22.2 15.1 23.5 14 24 C12.9 23.5 12 22.2 12 20.5 C12 18.5 14 16 14 16Z" fill={active ? '#fbf8f1' : '#ccc'} opacity="0.7"/>
+    </svg>
+  );
+  return (
+    <div style={{ margin:'0 18px 4px', padding:'14px 16px', background:'rgba(41,38,27,0.035)', borderRadius:14, border:'0.5px solid rgba(41,38,27,0.1)' }}>
+      <div style={{ display:'flex', alignItems:'center', gap:12 }}>
+        <FlameIcon/>
+        <div style={{ flex:1 }}>
+          <div style={{ display:'flex', alignItems:'baseline', gap:8 }}>
+            <div style={{ fontFamily:'Newsreader,serif', fontSize:28, fontWeight:400, color:'#29261b', lineHeight:1, fontVariantNumeric:'oldstyle-nums' }}>{streak}</div>
+            <div style={{ fontFamily:'system-ui', fontSize:11, color:'rgba(41,38,27,0.5)', fontWeight:500 }}>Wochen gemeinsam</div>
+          </div>
+          <div style={{ fontSize:9, letterSpacing:'.12em', textTransform:'uppercase', color:'rgba(41,38,27,0.38)', fontFamily:'system-ui', fontWeight:600, marginTop:3 }}>Gemeinsame Streak · {buddyName}</div>
+        </div>
+        <div style={{ display:'flex', flexDirection:'column', alignItems:'flex-end', gap:4 }}>
+          <div style={{ display:'flex', alignItems:'center', gap:5 }}>
+            <div style={{ width:7, height:7, borderRadius:'50%', background: myThisWeek ? '#3a9a3a' : 'rgba(41,38,27,0.18)' }}/>
+            <span style={{ fontSize:10, color:'rgba(41,38,27,0.5)', fontFamily:'system-ui' }}>Du</span>
+          </div>
+          <div style={{ display:'flex', alignItems:'center', gap:5 }}>
+            <div style={{ width:7, height:7, borderRadius:'50%', background: buddyThisWeek ? '#3a9a3a' : 'rgba(41,38,27,0.18)' }}/>
+            <span style={{ fontSize:10, color:'rgba(41,38,27,0.5)', fontFamily:'system-ui' }}>{buddyName}</span>
+          </div>
+        </div>
+      </div>
+      {!buddyThisWeek && myThisWeek && (
+        <button type="button" onClick={()=>onConfirm(thisWeek)} style={{ marginTop:12, width:'100%', padding:'10px 0', borderRadius:10, border:'0.5px solid rgba(41,38,27,0.2)', background:'transparent', fontFamily:'system-ui', fontSize:13, fontWeight:500, color:'#29261b', cursor:'pointer' }}>
+          {buddyName} war auch dabei diese Woche ✓
+        </button>
+      )}
+      {buddyThisWeek && (
+        <div style={{ marginTop:10, textAlign:'center', fontFamily:'Newsreader,serif', fontStyle:'italic', fontSize:13, color:'rgba(41,38,27,0.55)' }}>
+          Beide diese Woche — Streak läuft! 🔥
+        </div>
+      )}
+      {!myThisWeek && (
+        <div style={{ marginTop:10, textAlign:'center', fontFamily:'Newsreader,serif', fontStyle:'italic', fontSize:12, color:'rgba(41,38,27,0.45)' }}>
+          Du warst diese Woche noch nicht da.
+        </div>
+      )}
     </div>
   );
 }
@@ -892,7 +979,7 @@ function VizSegment({ value, onChange }) {
   );
 }
 
-function SammelnScreen({ stats, accent, viz, setViz, goal, onCheckin, checkedInToday, todayISO, showDemo, year=YEAR, levels={}, routes={}, onToggleDay, onSetLevel, onNachtragen }) {
+function SammelnScreen({ stats, accent, viz, setViz, goal, onCheckin, checkedInToday, todayISO, showDemo, year=YEAR, levels={}, routes={}, onToggleDay, onSetLevel, onNachtragen, checkins=[], buddyWeeks, buddyName, onBuddyConfirm, onBuddyRevoke }) {
   const remaining=Math.max(0,goal-stats.total);
   const goalPct=Math.min(100,Math.round((stats.total/goal)*100));
   const viewingPast=year!==YEAR;
@@ -923,8 +1010,9 @@ function SammelnScreen({ stats, accent, viz, setViz, goal, onCheckin, checkedInT
         <Stat label="Streak" value={`${stats.longestStreak} W.`} hint="in Folge"/>
         <Stat label="Monate" value={`${stats.monthsHit}/12`}/>
       </div>
-      <div style={{ padding:'14px 0 10px' }}>
-        <HoroskopCard stats={stats} todayISO={todayISO}/>
+      <div style={{ padding:'14px 0 0' }}>
+        {buddyWeeks&&<BuddyStreakCard checkins={checkins} buddyWeeks={buddyWeeks} buddyName={buddyName} onConfirm={onBuddyConfirm} onRevoke={onBuddyRevoke}/>}
+        <div style={{ padding:'10px 0 10px' }}><HoroskopCard stats={stats} todayISO={todayISO}/></div>
       </div>
       <div style={{ padding:'0 0 4px' }}>
         <VizSegment value={viz} onChange={setViz}/>
@@ -1419,8 +1507,9 @@ function loadAppData() {
       goal: JSON.parse(localStorage.getItem('sb-goal') || '40'),
       accent: localStorage.getItem('sb-accent') || '#6b6862',
       onboarded: !!localStorage.getItem('sb-onboarded'),
+      buddyName: loadBuddyName(),
     };
-  } catch { return { checkins:[], levels:{}, routes:{}, goal:40, accent:'#6b6862', onboarded:false }; }
+  } catch { return { checkins:[], levels:{}, routes:{}, goal:40, accent:'#6b6862', onboarded:false, buddyName:'Kollegin' }; }
 }
 
 function App() {
@@ -1437,6 +1526,19 @@ function App() {
   const [newlyEarnedBadges, setNewlyEarnedBadges]=React.useState([]);
   const [gradePromptISO, setGradePromptISO]=React.useState(null);
   const [horoskopVisible, setHoroskopVisible]=React.useState(false);
+  const [buddyWeeks, setBuddyWeeks]=React.useState(loadBuddyWeeks);
+  const [buddyName, setBuddyName]=React.useState(()=>loadAppData().buddyName);
+
+  const onBuddyConfirm=(wk)=>{
+    const next=new Set(buddyWeeks); next.add(wk); saveBuddyWeeks(next); setBuddyWeeks(next);
+  };
+  const onBuddyRevoke=(wk)=>{
+    const next=new Set(buddyWeeks); next.delete(wk); saveBuddyWeeks(next); setBuddyWeeks(next);
+  };
+  const setBuddyNamePersist=(name)=>{
+    localStorage.setItem('sb-buddy-name', name); setBuddyName(name);
+  };
+
   // Einmal pro Tag beim App-Öffnen anzeigen, falls Daten vorhanden
   React.useEffect(()=>{
     if (!loadAppData().onboarded) return;
@@ -1587,7 +1689,7 @@ function App() {
         onChange={(e)=>{ const f=e.target.files&&e.target.files[0]; if (f) importData(f); e.target.value=''; }}/>
       <div style={{ position:'absolute', inset:0, background:'#f6f2ea', color:'#29261b', overflow:'hidden' }}>
         <div style={{ position:'absolute', inset:0, overflowY:'auto', overflowX:'hidden', WebkitOverflowScrolling:'touch' }}>
-          {tab==='sammeln'&&<SammelnScreen stats={stats} accent={appData.accent} viz={viz} setViz={setViz} goal={appData.goal} onCheckin={onCheckin} checkedInToday={checkedInToday} todayISO={todayISO} showDemo={showDemo} year={year} levels={activeLevels} routes={showDemo?{}:appData.routes} onToggleDay={toggleDay} onSetLevel={setDayLevel} onNachtragen={()=>setNachtragenOpen(true)}/>}
+          {tab==='sammeln'&&<SammelnScreen stats={stats} accent={appData.accent} viz={viz} setViz={setViz} goal={appData.goal} onCheckin={onCheckin} checkedInToday={checkedInToday} todayISO={todayISO} showDemo={showDemo} year={year} levels={activeLevels} routes={showDemo?{}:appData.routes} onToggleDay={toggleDay} onSetLevel={setDayLevel} onNachtragen={()=>setNachtragenOpen(true)} checkins={activeCheckins} buddyWeeks={buddyWeeks} buddyName={buddyName} onBuddyConfirm={onBuddyConfirm} onBuddyRevoke={onBuddyRevoke}/>}
           {tab==='erfolge'&&<ErfolgeScreen stats={stats} badges={badges}/>}
           {tab==='jahr'&&<JahrScreen stats={stats} badges={badges} accent={appData.accent} year={year} levels={activeLevels}/>}
         </div>
@@ -1619,6 +1721,12 @@ function App() {
         )}
         <TweakSection label="Tage nachtragen">
           <DayEditor year={year} checkins={appData.checkins} accent={appData.accent} onToggle={toggleDay}/>
+        </TweakSection>
+        <TweakSection label="Buddy Streak">
+          <div className="twk-row">
+            <div className="twk-lbl"><span>Name des Buddy</span></div>
+            <input type="text" value={buddyName} onChange={(e)=>setBuddyNamePersist(e.target.value)} placeholder="Kollegin" style={{ border:'0.5px solid rgba(41,38,27,0.2)', borderRadius:7, padding:'5px 8px', fontFamily:'inherit', fontSize:12, background:'rgba(0,0,0,0.04)', color:'#29261b', outline:'none', width:'100%', boxSizing:'border-box' }}/>
+          </div>
         </TweakSection>
         <TweakSection label="Daten">
           <TweakButton label="Backup sichern (Download)" secondary onClick={exportData}/>
