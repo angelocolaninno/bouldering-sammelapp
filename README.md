@@ -30,7 +30,7 @@ Für PWA-Installation und den Service Worker muss die App über `http://localhos
 1. Beim ersten Start ein Jahresziel wählen.
 2. Nach der Session auf **„Heute gebouldert“** tippen.
 3. Über das Zahnrad lassen sich Akzentfarbe, Ziel, Animation und Buddy-Name ändern, Tage nachtragen sowie Backups sichern oder laden.
-4. Die Tabs unten wechseln zwischen Sammeln, Erfolgen und Jahresübersicht.
+4. Die Tabs unten wechseln zwischen Sammeln, Erfolgen und Jahr.
 
 Die Daten bleiben bewusst auf dem jeweiligen Gerät und Browserprofil. Ein Browserdaten-Reset entfernt sie; vor einem Geräte- oder Browserwechsel deshalb im Bereich **Daten** ein Backup herunterladen und danach wieder importieren.
 
