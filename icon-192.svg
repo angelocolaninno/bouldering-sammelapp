@@ -1,22 +1,133 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 192 192" width="192" height="192">
-  <!-- Parchment background -->
-  <rect width="192" height="192" rx="40" fill="#efe9dc"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="192" height="192">
+  <defs>
+    <clipPath id="clip">
+      <rect width="512" height="512" rx="108" ry="108"/>
+    </clipPath>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#080e1a"/>
+      <stop offset="55%" stop-color="#111e32"/>
+      <stop offset="100%" stop-color="#1a2e48"/>
+    </linearGradient>
+    <linearGradient id="rock" x1="0.18" y1="0" x2="0.82" y2="1">
+      <stop offset="0%" stop-color="#a88865"/>
+      <stop offset="38%" stop-color="#7e5c3a"/>
+      <stop offset="100%" stop-color="#3c2410"/>
+    </linearGradient>
+    <linearGradient id="rockShadow" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#120804" stop-opacity="0.82"/>
+      <stop offset="60%" stop-color="#120804" stop-opacity="0"/>
+    </linearGradient>
+    <radialGradient id="moonGlow" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="60%" stop-color="#e8953d" stop-opacity="0"/>
+      <stop offset="100%" stop-color="#e8953d" stop-opacity="0.18"/>
+    </radialGradient>
+  </defs>
 
-  <!-- Mountain silhouette: two peaks, ink dark -->
-  <path d="M96 38 L148 130 H44 Z" fill="#29261b"/>
-  <!-- Second smaller peak overlapping -->
-  <path d="M140 68 L172 130 H108 Z" fill="#3d3929"/>
+  <g clip-path="url(#clip)">
 
-  <!-- Snow cap on main peak -->
-  <path d="M96 38 L109 64 L96 58 L83 64 Z" fill="#f6f2ea"/>
+    <!-- Sky -->
+    <rect width="512" height="512" fill="url(#bg)"/>
 
-  <!-- Decorative border ring -->
-  <circle cx="96" cy="96" r="82" fill="none" stroke="#29261b" stroke-width="3" stroke-dasharray="6 4" opacity="0.35"/>
+    <!-- Moon glow halo -->
+    <circle cx="385" cy="94" r="110" fill="url(#moonGlow)"/>
 
-  <!-- Bottom arc label band -->
-  <path d="M32 148 A68 68 0 0 0 160 148" fill="none" stroke="#29261b" stroke-width="1.2" opacity="0.25"/>
+    <!-- Moon -->
+    <circle cx="385" cy="94" r="58" fill="#e8953d" opacity="0.92"/>
+    <circle cx="385" cy="94" r="50" fill="#f5b870" opacity="0.20"/>
+    <circle cx="368" cy="80" r="7" fill="#d07830" opacity="0.18"/>
+    <circle cx="398" cy="108" r="5" fill="#d07830" opacity="0.14"/>
+    <circle cx="378" cy="112" r="4" fill="#d07830" opacity="0.12"/>
 
-  <!-- "SB" monogram below mountain -->
-  <text x="96" y="158" font-family="Georgia, serif" font-size="20" font-weight="600"
-        text-anchor="middle" fill="#29261b" letter-spacing="6" opacity="0.75">SB</text>
+    <!-- Stars -->
+    <circle cx="68"  cy="58"  r="2.5" fill="#d0e8ff" opacity="0.72"/>
+    <circle cx="110" cy="36"  r="2.0" fill="#d0e8ff" opacity="0.58"/>
+    <circle cx="155" cy="72"  r="1.8" fill="#d0e8ff" opacity="0.52"/>
+    <circle cx="48"  cy="112" r="1.5" fill="#d0e8ff" opacity="0.42"/>
+    <circle cx="182" cy="44"  r="2.2" fill="#d0e8ff" opacity="0.64"/>
+    <circle cx="455" cy="50"  r="1.8" fill="#d0e8ff" opacity="0.46"/>
+    <circle cx="472" cy="118" r="1.5" fill="#d0e8ff" opacity="0.50"/>
+    <circle cx="82"  cy="152" r="1.5" fill="#d0e8ff" opacity="0.36"/>
+    <circle cx="302" cy="56"  r="1.5" fill="#d0e8ff" opacity="0.40"/>
+    <circle cx="240" cy="78"  r="1.2" fill="#d0e8ff" opacity="0.32"/>
+    <circle cx="130" cy="118" r="1.2" fill="#d0e8ff" opacity="0.30"/>
+
+    <!-- Warm horizon glow -->
+    <ellipse cx="256" cy="228" rx="340" ry="115" fill="#c0621a" opacity="0.11"/>
+
+    <!-- Boulder -->
+    <path d="M -6 518
+             L -6 454
+             Q 12 386 55 340
+             Q 94 286 158 250
+             Q 205 226 258 222
+             Q 310 220 352 236
+             Q 410 254 456 298
+             Q 500 334 518 386
+             L 518 518 Z"
+          fill="url(#rock)"/>
+
+    <!-- Boulder shadow -->
+    <path d="M -6 518 L -6 454 Q 12 386 55 340 Q 90 290 145 258 L 142 518 Z"
+          fill="url(#rockShadow)"/>
+
+    <!-- Moon highlight on upper-right edge -->
+    <path d="M 350 237 Q 408 255 454 298 L 459 305 Q 408 260 356 244 Z"
+          fill="white" opacity="0.07"/>
+
+    <!-- Cracks -->
+    <path d="M 226 412 Q 239 380 243 352 Q 245 332 251 317"
+          stroke="#2a1406" stroke-width="2.5" fill="none" opacity="0.62"/>
+    <path d="M 350 448 Q 362 418 367 392 Q 371 372 379 356"
+          stroke="#2a1406" stroke-width="2.0" fill="none" opacity="0.52"/>
+    <path d="M 110 472 Q 120 450 126 434 Q 130 420 136 410"
+          stroke="#2a1406" stroke-width="2.0" fill="none" opacity="0.40"/>
+    <path d="M 256 442 Q 280 437 296 440"
+          stroke="#2a1406" stroke-width="1.5" fill="none" opacity="0.38"/>
+
+    <!-- Chalk smears -->
+    <circle cx="290" cy="328" r="4.0" fill="white" opacity="0.11"/>
+    <circle cx="315" cy="358" r="2.8" fill="white" opacity="0.09"/>
+    <circle cx="276" cy="350" r="2.2" fill="white" opacity="0.08"/>
+
+    <!-- ======= HOLDS ======= -->
+    <ellipse cx="323" cy="258" rx="22" ry="14" fill="#e63946" transform="rotate(-22,323,258)"/>
+    <ellipse cx="323" cy="258" rx="13" ry="8"  fill="#ff9aa2" transform="rotate(-22,323,258)" opacity="0.44"/>
+    <circle  cx="323" cy="258" r="3.5" fill="#9a0e1e" opacity="0.55"/>
+
+    <ellipse cx="192" cy="318" rx="18" ry="12" fill="#4361ee" transform="rotate(16,192,318)"/>
+    <ellipse cx="192" cy="318" rx="11" ry="7"  fill="#8aabff" transform="rotate(16,192,318)" opacity="0.40"/>
+    <circle  cx="192" cy="318" r="3.0" fill="#1c2db8" opacity="0.50"/>
+
+    <ellipse cx="297" cy="387" rx="16" ry="10" fill="#f5c300" transform="rotate(-16,297,387)"/>
+    <ellipse cx="297" cy="387" rx="9"  ry="5.5" fill="#ffe566" transform="rotate(-16,297,387)" opacity="0.48"/>
+    <circle  cx="297" cy="387" r="2.5" fill="#b09000" opacity="0.50"/>
+
+    <ellipse cx="218" cy="413" rx="14" ry="9"  fill="#06d6a0" transform="rotate(12,218,413)"/>
+    <ellipse cx="218" cy="413" rx="8"  ry="5"  fill="#70f0c0" transform="rotate(12,218,413)" opacity="0.44"/>
+    <circle  cx="218" cy="413" r="2.5" fill="#04a070" opacity="0.50"/>
+
+    <!-- ======= CLIMBER ======= -->
+    <line x1="242" y1="372" x2="226" y2="406" stroke="white" stroke-width="16" stroke-linecap="round"/>
+    <line x1="226" y1="406" x2="218" y2="416" stroke="white" stroke-width="14" stroke-linecap="round"/>
+
+    <line x1="263" y1="372" x2="283" y2="396" stroke="white" stroke-width="16" stroke-linecap="round"/>
+    <line x1="283" y1="396" x2="296" y2="392" stroke="white" stroke-width="14" stroke-linecap="round"/>
+
+    <path d="M 238 320 L 232 356 Q 232 374 254 376 Q 276 374 276 356 L 270 320 Z" fill="white"/>
+
+    <line x1="236" y1="324" x2="208" y2="328" stroke="white" stroke-width="15" stroke-linecap="round"/>
+    <line x1="208" y1="328" x2="192" y2="323" stroke="white" stroke-width="13" stroke-linecap="round"/>
+
+    <line x1="272" y1="324" x2="300" y2="294" stroke="white" stroke-width="15" stroke-linecap="round"/>
+    <line x1="300" y1="294" x2="321" y2="270" stroke="white" stroke-width="13" stroke-linecap="round"/>
+
+    <circle cx="322" cy="266" r="12" fill="white" opacity="0.90"/>
+    <circle cx="253" cy="305" r="23" fill="white"/>
+
+    <!-- Chalk cloud -->
+    <circle cx="340" cy="255" r="17" fill="white" opacity="0.13"/>
+    <circle cx="350" cy="248" r="11" fill="white" opacity="0.09"/>
+    <circle cx="332" cy="247" r="8"  fill="white" opacity="0.07"/>
+
+  </g>
 </svg>
